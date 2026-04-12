@@ -5,23 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Part extends Model
+class PurchaseOrder extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'branch_id',
-        'name',
-        'variant',
-        'vehicle_make',
-        'vehicle_model',
+        'category',
         'description',
-        'cost_price',
-        'selling_price',
-        'stock',
-        'min_stock_threshold',
-        'image'
+        'amount',
+        'receipt_file',
+        'expense_date'
     ];
+
+    public function items()
+    {
+        return $this->hasMany(PurchaseOrderItem::class);
+    }
 
     public function branch()
     {

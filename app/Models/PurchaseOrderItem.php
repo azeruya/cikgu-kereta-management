@@ -5,26 +5,20 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class TransactionItem extends Model
+class PurchaseOrderItem extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'transaction_id',
+        'purchase_order_id',
         'part_id',
-        'item_type',
-        'service_name',
-        'service_hours',
-        'cost_price',
-        'selling_price',
         'quantity',
-        'total_price',
-        'note'
+        'cost_price',
     ];
 
-    public function transaction()
+    public function purchaseOrder()
     {
-        return $this->belongsTo(Transaction::class);
+        return $this->belongsTo(PurchaseOrder::class);
     }
 
     public function part()
