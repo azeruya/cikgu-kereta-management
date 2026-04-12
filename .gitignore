@@ -1,19 +1,41 @@
-/.phpunit.cache
-/node_modules
-/public/build
-/public/hot
-/public/storage
-/storage/*.key
-/vendor
+/vendor/
+/node_modules/
+
+# Logs
+*.log
+npm-debug.log
+yarn-error.log
+
+# Env files
 .env
 .env.backup
 .env.production
-.phpunit.result.cache
-Homestead.json
+
+# Laravel
+/public/storage
+/public/hot
+/public/build
+
+/storage/*
+!/storage/app/public
+!/storage/framework/
+!/storage/logs/
+
+/bootstrap/cache/*
+
+# Keys
+storage/*.key
+
+# Homestead / Vagrant
 Homestead.yaml
+Homestead.json
+/.vagrant
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Misc
+.phpunit.result.cache
 auth.json
-npm-debug.log
-yarn-error.log
-/.fleet
-/.idea
-/.vscode
