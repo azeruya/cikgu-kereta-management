@@ -14,12 +14,14 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
+            'branch_id' => 'required|exists:branches,id',
         ]);
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password)
+            'password' => Hash::make($request->password),
+            'branch_id' => $request->branch_id
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
