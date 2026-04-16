@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\PartController;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,6 +28,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::apiResource('/customers', CustomerController::class);
     Route::apiResource('/vehicles', VehicleController::class);
+    Route::apiResource('/parts', PartController::class);
+    Route::get('/parts-low-stock', [PartController::class, 'lowStock']);
 });
 
 // ADMIN routes
