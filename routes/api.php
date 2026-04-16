@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\PartController;
+use App\Http\Controllers\TransactionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,6 +31,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('/vehicles', VehicleController::class);
     Route::apiResource('/parts', PartController::class);
     Route::get('/parts-low-stock', [PartController::class, 'lowStock']);
+    Route::post('/transactions', [TransactionController::class, 'store']);
 });
 
 // ADMIN routes
