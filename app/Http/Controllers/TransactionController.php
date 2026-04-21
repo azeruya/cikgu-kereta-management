@@ -5,178 +5,176 @@ namespace App\Http\Controllers;
 use App\Models\Transaction;
 use App\Models\TransactionItem;
 use App\Models\Part;
+use App\Models\Vehicle;
+use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class TransactionController extends Controller
 {
+    // 🔹 LIST (fast, paginated)
     public function index(Request $request)
     {
-        $user = auth()->user();
+        $user = $request->user();
 
-        if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
+        $transactions = Transaction::query()
+            ->forBranch($user->branch_id)
+            ->status($request->status)
+            ->with([
+                'customer:id,name',
+                'vehicle:id,license_plate'
+            ])
+            ->select([
+                'id',
+                'customer_id',
+                'vehicle_id',
+                'status',
+                'total_amount',
+                'discount_amount',
+                'created_at'
+            ])
+            ->latest()
+            ->paginate(15);
 
-        $status = $request->query('status');
+        return response()->json($transactions);
+    }
 
-        $query = Transaction::query()
-            ->where('branch_id', $user->branch_id)
+    // 🔹 DETAIL
+    public function show(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $transaction = Transaction::query()
+            ->forBranch($user->branch_id)
+            ->where('id', $id)
             ->with([
                 'customer:id,name,phone',
                 'vehicle:id,license_plate,make,model,year',
+                'items.part:id,name,variant',
+                'payments'
             ])
-            ->orderByDesc('id');
-
-        if ($status && in_array($status, ['quotation', 'invoice', 'receipt'])) {
-            $query->where('status', $status);
-        }
-
-        return response()->json($query->paginate(10));
-    }
-
-    public function show($id)
-    {
-        $user = auth()->user();
-
-        if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        $transaction = Transaction::query()
-            ->where('branch_id', $user->branch_id)
-            ->with([
-                'customer:id,name,phone,email,address',
-                'vehicle:id,customer_id,license_plate,make,model,year',
-                'items',
-                'payments',
-            ])
-            ->findOrFail($id);
+            ->firstOrFail();
 
         return response()->json($transaction);
     }
 
+    // 🔥 CREATE TRANSACTION (CRITICAL)
     public function store(Request $request)
     {
-        $request->validate([
-            'vehicle_id' => 'required|exists:vehicles,id',
-            'customer_id' => 'required|exists:customers,id',
-            'items' => 'required|array'
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'customer_id' => 'required|integer',
+            'vehicle_id' => 'required|integer',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string',
+            'items' => 'required|array|min:1',
+
+            'items.*.part_id' => 'nullable|integer',
+            'items.*.service_name' => 'nullable|string',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.selling_price' => 'required|numeric|min:0',
         ]);
 
-        DB::beginTransaction();
+        $transaction = DB::transaction(function () use ($validated, $user) {
 
-        try {
+            // 🔹 validate ownership
+            Customer::where('branch_id', $user->branch_id)
+                ->findOrFail($validated['customer_id']);
+
+            Vehicle::where('branch_id', $user->branch_id)
+                ->findOrFail($validated['vehicle_id']);
+
+            $totalAmount = 0;
+
             $transaction = Transaction::create([
-                'branch_id' => auth()->user()->branch_id,
-                'vehicle_id' => $request->vehicle_id,
-                'customer_id' => $request->customer_id,
-                'status' => 'quotation',
-                'document_number' => 'TRX-' . time(),
-                'total_amount' => 0,
-                'discount_amount' => 0,
-                'notes' => $request->notes
+                'branch_id' => $user->branch_id,
+                'customer_id' => $validated['customer_id'],
+                'vehicle_id' => $validated['vehicle_id'],
+                'status' => 'quoted',
+                'discount_amount' => $validated['discount_amount'] ?? 0,
+                'notes' => $validated['notes'] ?? null,
+                'quoted_at' => now(),
             ]);
 
-            $total = 0;
+            foreach ($validated['items'] as $item) {
 
-            foreach ($request->items as $item) {
-                $transactionItem = TransactionItem::create([
+                $lineTotal = $item['quantity'] * $item['selling_price'];
+                $totalAmount += $lineTotal;
+
+                // 🔥 if it's a part → reduce stock
+                if (!empty($item['part_id'])) {
+                    $part = Part::where('branch_id', $user->branch_id)
+                        ->findOrFail($item['part_id']);
+
+                    $part->decrement('stock', $item['quantity']);
+                }
+
+                TransactionItem::create([
                     'transaction_id' => $transaction->id,
                     'part_id' => $item['part_id'] ?? null,
-                    'item_type' => $item['item_type'],
                     'service_name' => $item['service_name'] ?? null,
-                    'service_hours' => $item['service_hours'] ?? null,
-                    'cost_price' => $item['cost_price'] ?? 0,
+                    'quantity' => $item['quantity'],
                     'selling_price' => $item['selling_price'],
-                    'quantity' => $item['quantity'] ?? 1,
-                    'total_price' => $item['selling_price'] * ($item['quantity'] ?? 1),
-                    'note' => $item['note'] ?? null
+                    'total_price' => $lineTotal,
                 ]);
-
-                $total += $transactionItem->total_price;
             }
 
             $transaction->update([
-                'total_amount' => $total
+                'total_amount' => $totalAmount
             ]);
 
-            DB::commit();
+            return $transaction->load([
+                'items.part:id,name',
+                'customer:id,name',
+                'vehicle:id,license_plate'
+            ]);
+        });
 
-            return response()->json($transaction->load('items'), 201);
-
-        } catch (\Exception $e) {
-            DB::rollback();
-
-            return response()->json([
-                'message' => 'Transaction failed',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json($transaction, 201);
     }
 
-    public function confirmInvoice($id)
+    // 🔹 UPDATE STATUS (important for workflow)
+    public function updateStatus(Request $request, $id)
     {
-        DB::beginTransaction();
+        $user = $request->user();
 
-        try {
-            $transaction = Transaction::where('branch_id', auth()->user()->branch_id)
-                ->with('items')
-                ->findOrFail($id);
-
-            foreach ($transaction->items as $item) {
-                if ($item->item_type === 'part') {
-                    $part = Part::find($item->part_id);
-
-                    if (!$part) {
-                        throw new \Exception("Part not found");
-                    }
-
-                    if ($part->stock < $item->quantity) {
-                        throw new \Exception("Not enough stock for {$part->name}");
-                    }
-
-                    $part->decrement('stock', $item->quantity);
-                }
-            }
-
-            $transaction->update([
-                'status' => 'invoice'
-            ]);
-
-            DB::commit();
-
-            return response()->json([
-                'message' => 'Invoice confirmed and stock deducted'
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollback();
-
-            return response()->json([
-                'message' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function markPaid($id)
-    {
-        $user = auth()->user();
-
-        if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
+        $validated = $request->validate([
+            'status' => 'required|in:quoted,invoiced,paid'
+        ]);
 
         $transaction = Transaction::query()
-            ->where('branch_id', $user->branch_id)
-            ->findOrFail($id);
+            ->forBranch($user->branch_id)
+            ->where('id', $id)
+            ->firstOrFail();
 
-        $transaction->update([
-            'status' => 'receipt'
-        ]);
+        $updateData = ['status' => $validated['status']];
 
-        return response()->json([
-            'message' => 'Transaction marked as paid'
-        ]);
+        if ($validated['status'] === 'invoiced') {
+            $updateData['invoiced_at'] = now();
+        }
+
+        if ($validated['status'] === 'paid') {
+            $updateData['paid_at'] = now();
+        }
+
+        $transaction->update($updateData);
+
+        return response()->json($transaction);
+    }
+
+    // 🔹 DELETE (optional, but careful)
+    public function destroy(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $transaction = Transaction::query()
+            ->forBranch($user->branch_id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $transaction->delete();
+
+        return response()->json(['message' => 'Transaction deleted']);
     }
 }

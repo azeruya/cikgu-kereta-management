@@ -4,131 +4,126 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class CustomerController extends Controller
 {
-    // GET CUSTOMER LIST (fast, for table page)
-public function index()
-{
-    $user = auth()->user();
+    public function index(Request $request)
+    {
+        $user = $request->user();
 
-    if (!$user) {
-        return response()->json(['message' => 'Unauthenticated'], 401);
+        $customers = Customer::query()
+            ->where('branch_id', $user->branch_id)
+            ->with([
+                'vehicles:id,customer_id,license_plate'
+            ])
+            ->orderByDesc('id')
+            ->paginate(10);
+
+        return response()->json($customers);
     }
 
-    $customers = Customer::query()
-        ->where('branch_id', $user->branch_id)
-        ->with([
-            'vehicles:id,customer_id,license_plate'
-        ])
-        ->orderByDesc('id')
-        ->paginate(10);
-
-    return response()->json($customers);
-}
-
-    // CREATE CUSTOMER
     public function store(Request $request)
     {
-        $user = auth()->user();
+        $user = $request->user();
 
-        if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'phone' => 'nullable|string|max:50',
-            'email' => 'nullable|email|max:255',
-            'address' => 'nullable|string'
+            'email' => [
+                'nullable',
+                'email',
+                'max:255',
+                Rule::unique('customers', 'email')->where(function ($query) use ($user) {
+                    return $query->where('branch_id', $user->branch_id);
+                }),
+            ],
+            'address' => 'nullable|string',
         ]);
 
         $customer = Customer::create([
-            'name' => $request->name,
-            'phone' => $request->phone,
-            'email' => $request->email,
-            'address' => $request->address,
-            'branch_id' => $user->branch_id
+            'name' => $validated['name'],
+            'phone' => $validated['phone'] ?? null,
+            'email' => $validated['email'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'branch_id' => $user->branch_id,
         ]);
 
         return response()->json($customer, 201);
     }
 
-    // SHOW ONE CUSTOMER (heavier, for detail/modal page)
-    public function show($id)
-{
-    $user = auth()->user();
-
-    if (!$user) {
-        return response()->json(['message' => 'Unauthenticated'], 401);
-    }
-
-    $customer = Customer::query()
-        ->where('branch_id', $user->branch_id)
-        ->with([
-            'vehicles:id,customer_id,license_plate,make,model,year',
-            'latestTransaction:transactions.id,transactions.customer_id,transactions.status,transactions.created_at',
-            'transactions' => function ($query) {
-                $query->select(
-                        'id',
-                        'customer_id',
-                        'vehicle_id',
-                        'document_number',
-                        'status',
-                        'total_amount',
-                        'created_at'
-                    )
-                    ->with([
-                        'vehicle:id,license_plate,make,model,year'
-                    ])
-                    ->orderByDesc('id')
-                    ->limit(5);
-            }
-        ])
-        ->withCount('transactions')
-        ->withSum('transactions', 'total_amount')
-        ->findOrFail($id);
-
-    return response()->json($customer);
-}
-
-    // UPDATE CUSTOMER
-    public function update(Request $request, $id)
+    public function show(Request $request, $id)
     {
-        $user = auth()->user();
+        $user = $request->user();
 
-        if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'phone' => 'nullable|string|max:50',
-            'email' => 'nullable|email|max:255',
-            'address' => 'nullable|string'
-        ]);
-
-        $customer = Customer::where('branch_id', $user->branch_id)
-            ->findOrFail($id);
-
-        $customer->update($request->only([
-            'name', 'phone', 'email', 'address'
-        ]));
+        $customer = Customer::query()
+            ->where('branch_id', $user->branch_id)
+            ->where('id', $id)
+            ->with([
+                'vehicles:id,customer_id,license_plate,make,model,year',
+                'transactions' => function ($query) {
+                    $query->select(
+                            'id',
+                            'customer_id',
+                            'vehicle_id',
+                            'document_number',
+                            'status',
+                            'total_amount',
+                            'discount_amount',
+                            'created_at'
+                        )
+                        ->with([
+                            'vehicle:id,license_plate,make,model,year'
+                        ])
+                        ->orderByDesc('id')
+                        ->limit(5);
+                }
+            ])
+            ->withCount('transactions')
+            ->withSum('transactions', 'total_amount')
+            ->firstOrFail();
 
         return response()->json($customer);
     }
 
-    // DELETE CUSTOMER
-    public function destroy($id)
+    public function update(Request $request, $id)
     {
-        $user = auth()->user();
+        $user = $request->user();
 
-        if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
+        $customer = Customer::query()
+            ->where('branch_id', $user->branch_id)
+            ->where('id', $id)
+            ->firstOrFail();
 
-        $customer = Customer::where('branch_id', $user->branch_id)
-            ->findOrFail($id);
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'email' => [
+                'nullable',
+                'email',
+                'max:255',
+                Rule::unique('customers', 'email')
+                    ->ignore($customer->id)
+                    ->where(function ($query) use ($user) {
+                        return $query->where('branch_id', $user->branch_id);
+                    }),
+            ],
+            'address' => 'nullable|string',
+        ]);
+
+        $customer->update($validated);
+
+        return response()->json($customer);
+    }
+
+    public function destroy(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $customer = Customer::query()
+            ->where('branch_id', $user->branch_id)
+            ->where('id', $id)
+            ->firstOrFail();
 
         $customer->delete();
 

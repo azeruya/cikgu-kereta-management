@@ -35,7 +35,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|string|email|max:255',
+            'email' => 'required|string|email',
             'password' => 'required|string',
         ]);
 
@@ -45,10 +45,13 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
+        // 🔥 important
+        $user->tokens()->delete();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'user' => $user,
+            'user' => $user->only(['id','name','email','branch_id']),
             'token' => $token
         ]);
     }
