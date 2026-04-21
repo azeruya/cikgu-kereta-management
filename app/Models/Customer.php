@@ -7,8 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class Customer extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'name',
         'branch_id',
@@ -30,10 +28,5 @@ class Customer extends Model
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
-    }
-
-    public function latestTransaction()
-    {
-        return $this->hasOne(Transaction::class)->latestOfMany();
     }
 }

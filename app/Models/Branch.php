@@ -7,8 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class Branch extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'name',
         'location',
@@ -29,8 +27,23 @@ class Branch extends Model
         return $this->hasMany(Vehicle::class);
     }
 
+    public function parts()
+    {
+        return $this->hasMany(Part::class);
+    }
+
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    public function expenses()
+    {
+        return $this->hasMany(Expense::class);
+    }
+
+    public function purchaseOrders()
+    {
+        return $this->hasMany(PurchaseOrder::class);
     }
 }

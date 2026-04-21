@@ -7,24 +7,27 @@ use Illuminate\Database\Eloquent\Model;
 
 class PurchaseOrder extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'branch_id',
-        'category',
-        'description',
-        'amount',
-        'receipt_file',
-        'expense_date'
+        'supplier_name',
+        'supplier_contact',
+        'total_amount',
+        'status',
+        'order_date',
     ];
 
-    public function items()
-    {
-        return $this->hasMany(PurchaseOrderItem::class);
-    }
+    protected $casts = [
+        'total_amount' => 'decimal:2',
+        'order_date' => 'date',
+    ];
 
     public function branch()
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    public function items()
+    {
+        return $this->hasMany(PurchaseOrderItem::class);
     }
 }

@@ -7,13 +7,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class PurchaseOrderItem extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'purchase_order_id',
         'part_id',
         'quantity',
         'cost_price',
+    ];
+
+    protected $casts = [
+        'cost_price' => 'decimal:2',
     ];
 
     public function purchaseOrder()

@@ -7,8 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class Transaction extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'branch_id',
         'vehicle_id',
@@ -18,6 +16,17 @@ class Transaction extends Model
         'total_amount',
         'discount_amount',
         'notes',
+        'quoted_at',
+        'invoiced_at',
+        'paid_at',
+    ];
+
+    protected $casts = [
+        'total_amount' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
+        'quoted_at' => 'datetime',
+        'invoiced_at' => 'datetime',
+        'paid_at' => 'datetime',
     ];
 
     public function branch()
@@ -45,24 +54,8 @@ class Transaction extends Model
         return $this->hasMany(Payment::class);
     }
 
-    public function getPaidAmountAttribute()
+    public function getAmountPayableAttribute()
     {
-        return $this->payments->sum('amount_paid');
-    }
-
-    public function getBalanceAttribute()
-    {
-        return $this->total_amount - $this->paid_amount;
-    }
-
-    public function getPaymentStatusAttribute()
-    {
-        if ($this->balance <= 0) {
-            return 'Paid';
-        } elseif ($this->paid_amount > 0) {
-            return 'Partially Paid';
-        } else {
-            return 'Unpaid';
-        }
+        return (float) $this->total_amount - (float) $this->discount_amount;
     }
 }

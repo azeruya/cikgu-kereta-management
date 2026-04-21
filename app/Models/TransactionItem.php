@@ -7,8 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 
 class TransactionItem extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'transaction_id',
         'part_id',
@@ -19,7 +17,14 @@ class TransactionItem extends Model
         'selling_price',
         'quantity',
         'total_price',
-        'note'
+        'note',
+    ];
+
+    protected $casts = [
+        'service_hours' => 'decimal:2',
+        'cost_price' => 'decimal:2',
+        'selling_price' => 'decimal:2',
+        'total_price' => 'decimal:2',
     ];
 
     public function transaction()
