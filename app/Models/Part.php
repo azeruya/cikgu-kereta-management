@@ -46,4 +46,38 @@ class Part extends Model
     {
         return $this->hasMany(PurchaseOrderItem::class);
     }
+
+    public function scopeForBranch($query, $branchId)
+    {
+        return $query->where('branch_id', $branchId);
+    }
+
+    public function scopeLowStock($query)
+    {
+        return $query->whereColumn('stock', '<=', 'min_stock_threshold');
+    }
+
+    public function scopeGeneric($query)
+    {
+        return $query->where('is_generic', true);
+    }
+
+    public function scopeCompatibleWithVehicle($query, $vehicle)
+    {
+        return $query->where(function ($q) use ($vehicle) {
+            $q->where('is_generic', true)
+            ->orWhereHas('compatibilities', function ($compat) use ($vehicle) {
+                $compat->where('make', $vehicle->make)
+                        ->where('model', $vehicle->model)
+                        ->where(function ($y) use ($vehicle) {
+                            $y->whereNull('year_from')
+                            ->orWhere('year_from', '<=', $vehicle->year);
+                        })
+                        ->where(function ($y) use ($vehicle) {
+                            $y->whereNull('year_to')
+                            ->orWhere('year_to', '>=', $vehicle->year);
+                        });
+            });
+        });
+    }
 }

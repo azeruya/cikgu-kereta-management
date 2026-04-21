@@ -58,4 +58,14 @@ class Transaction extends Model
     {
         return (float) $this->total_amount - (float) $this->discount_amount;
     }
+
+    public function scopeForBranch($query, $branchId)
+    {
+        return $query->where('branch_id', $branchId);
+    }
+
+    public function scopeStatus($query, $status)
+    {
+        return $status ? $query->where('status', $status) : $query;
+    }
 }
