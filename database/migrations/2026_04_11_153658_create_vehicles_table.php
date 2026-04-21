@@ -3,12 +3,10 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('vehicles', function (Blueprint $table) {
@@ -21,11 +19,14 @@ return new class extends Migration
             $table->integer('year');
             $table->timestamps();
         });
+
+        DB::statement("
+            ALTER TABLE vehicles
+            ADD CONSTRAINT vehicles_year_reasonable
+            CHECK (year >= 1950 AND year <= 2100)
+        ");
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('vehicles');

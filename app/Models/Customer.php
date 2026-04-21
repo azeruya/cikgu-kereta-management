@@ -26,4 +26,14 @@ class Customer extends Model
     {
         return $this->hasMany(Vehicle::class);
     }
+
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
+    public function latestTransaction()
+    {
+        return $this->hasOne(Transaction::class)->latestOfMany();
+    }
 }

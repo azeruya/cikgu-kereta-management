@@ -10,6 +10,52 @@ use Illuminate\Support\Facades\DB;
 
 class TransactionController extends Controller
 {
+    public function index(Request $request)
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $status = $request->query('status');
+
+        $query = Transaction::query()
+            ->where('branch_id', $user->branch_id)
+            ->with([
+                'customer:id,name,phone',
+                'vehicle:id,license_plate,make,model,year',
+            ])
+            ->orderByDesc('id');
+
+        if ($status && in_array($status, ['quotation', 'invoice', 'receipt'])) {
+            $query->where('status', $status);
+        }
+
+        return response()->json($query->paginate(10));
+    }
+
+    public function show($id)
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $transaction = Transaction::query()
+            ->where('branch_id', $user->branch_id)
+            ->with([
+                'customer:id,name,phone,email,address',
+                'vehicle:id,customer_id,license_plate,make,model,year',
+                'items',
+                'payments',
+            ])
+            ->findOrFail($id);
+
+        return response()->json($transaction);
+    }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -21,8 +67,6 @@ class TransactionController extends Controller
         DB::beginTransaction();
 
         try {
-
-            // 1. Create transaction (quotation first)
             $transaction = Transaction::create([
                 'branch_id' => auth()->user()->branch_id,
                 'vehicle_id' => $request->vehicle_id,
@@ -36,9 +80,7 @@ class TransactionController extends Controller
 
             $total = 0;
 
-            // 2. Create items
             foreach ($request->items as $item) {
-
                 $transactionItem = TransactionItem::create([
                     'transaction_id' => $transaction->id,
                     'part_id' => $item['part_id'] ?? null,
@@ -55,14 +97,13 @@ class TransactionController extends Controller
                 $total += $transactionItem->total_price;
             }
 
-            // 3. Update transaction total
             $transaction->update([
                 'total_amount' => $total
             ]);
 
             DB::commit();
 
-            return response()->json($transaction->load('items'));
+            return response()->json($transaction->load('items'), 201);
 
         } catch (\Exception $e) {
             DB::rollback();
@@ -72,5 +113,70 @@ class TransactionController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function confirmInvoice($id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $transaction = Transaction::where('branch_id', auth()->user()->branch_id)
+                ->with('items')
+                ->findOrFail($id);
+
+            foreach ($transaction->items as $item) {
+                if ($item->item_type === 'part') {
+                    $part = Part::find($item->part_id);
+
+                    if (!$part) {
+                        throw new \Exception("Part not found");
+                    }
+
+                    if ($part->stock < $item->quantity) {
+                        throw new \Exception("Not enough stock for {$part->name}");
+                    }
+
+                    $part->decrement('stock', $item->quantity);
+                }
+            }
+
+            $transaction->update([
+                'status' => 'invoice'
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Invoice confirmed and stock deducted'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+
+            return response()->json([
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function markPaid($id)
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $transaction = Transaction::query()
+            ->where('branch_id', $user->branch_id)
+            ->findOrFail($id);
+
+        $transaction->update([
+            'status' => 'receipt'
+        ]);
+
+        return response()->json([
+            'message' => 'Transaction marked as paid'
+        ]);
     }
 }

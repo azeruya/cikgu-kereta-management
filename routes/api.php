@@ -31,7 +31,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('/vehicles', VehicleController::class);
     Route::apiResource('/parts', PartController::class);
     Route::get('/parts-low-stock', [PartController::class, 'lowStock']);
+    Route::get('/job-orders', [TransactionController::class, 'jobOrders']);
+
+    // transaction routes
+    Route::get('/transactions', [TransactionController::class, 'index']);
+    Route::get('/transactions/{id}', [TransactionController::class, 'show']);
     Route::post('/transactions', [TransactionController::class, 'store']);
+    Route::post('/transactions/{id}/confirm', [TransactionController::class, 'confirmInvoice']);
+    Route::post('/transactions/{id}/pay', [TransactionController::class, 'markPaid']);
 });
 
 // ADMIN routes

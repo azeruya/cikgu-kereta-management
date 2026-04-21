@@ -44,4 +44,25 @@ class Transaction extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    public function getPaidAmountAttribute()
+    {
+        return $this->payments->sum('amount_paid');
+    }
+
+    public function getBalanceAttribute()
+    {
+        return $this->total_amount - $this->paid_amount;
+    }
+
+    public function getPaymentStatusAttribute()
+    {
+        if ($this->balance <= 0) {
+            return 'Paid';
+        } elseif ($this->paid_amount > 0) {
+            return 'Partially Paid';
+        } else {
+            return 'Unpaid';
+        }
+    }
 }
