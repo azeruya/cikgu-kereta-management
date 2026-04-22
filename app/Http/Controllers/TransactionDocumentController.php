@@ -29,7 +29,7 @@ class TransactionDocumentController extends Controller
 
         $pdf = Pdf::loadView('pdf.transaction-quotation', compact('transaction'));
 
-        return $pdf->download(($transaction->quotation_number ?? 'quotation') . '.pdf');
+        return $pdf->download($this->quotationNumber($transaction) . '.pdf');
     }
 
     public function invoice(Request $request, $id)
@@ -38,7 +38,7 @@ class TransactionDocumentController extends Controller
 
         $pdf = Pdf::loadView('pdf.transaction-invoice', compact('transaction'));
 
-        return $pdf->download(($transaction->invoice_number ?? 'invoice') . '.pdf');
+        return $pdf->download($this->invoiceNumber($transaction) . '.pdf');
     }
 
     public function receipt(Request $request, $id)
@@ -47,6 +47,21 @@ class TransactionDocumentController extends Controller
 
         $pdf = Pdf::loadView('pdf.transaction-receipt', compact('transaction'));
 
-        return $pdf->download(($transaction->receipt_number ?? 'receipt') . '.pdf');
+        return $pdf->download($this->receiptNumber($transaction) . '.pdf');
+    }
+
+    protected function quotationNumber(Transaction $transaction): string
+    {
+        return 'QUO-' . str_pad($transaction->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    protected function invoiceNumber(Transaction $transaction): string
+    {
+        return 'INV-' . str_pad($transaction->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    protected function receiptNumber(Transaction $transaction): string
+    {
+        return 'REC-' . str_pad($transaction->id, 6, '0', STR_PAD_LEFT);
     }
 }

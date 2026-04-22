@@ -263,9 +263,17 @@ public function store(Request $request)
     {
         $user = $request->user();
 
-        $transaction = Transaction::query()
+        $validated = $request->validate([
+            'amount_paid' => 'required|numeric|min:0.01',
+            'payment_method' => 'required|string|max:50',
+            'payment_reference' => 'nullable|string|max:255',
+            'payment_date' => 'nullable|date',
+        ]);
+
+        $transaction = \App\Models\Transaction::query()
             ->where('branch_id', $user->branch_id)
             ->where('id', $id)
+            ->with('payments')
             ->firstOrFail();
 
         if ($transaction->status !== 'invoice') {
@@ -274,15 +282,111 @@ public function store(Request $request)
             ], 422);
         }
 
-        $transaction->update([
-            'status' => 'paid',
-            'paid_at' => now(),
-        ]);
+        \DB::transaction(function () use ($transaction, $validated) {
+            $transaction->payments()->create([
+                'amount_paid' => $validated['amount_paid'],
+                'payment_method' => $validated['payment_method'],
+                'payment_reference' => $validated['payment_reference'] ?? null,
+                'payment_date' => $validated['payment_date'] ?? now(),
+            ]);
+
+            $transaction->update([
+                'status' => 'receipt',
+                'paid_at' => $validated['payment_date'] ?? now(),
+            ]);
+        });
 
         return response()->json([
             'message' => 'Transaction marked as paid.',
-            'transaction' => $transaction,
-            'receipt_number' => $this->receiptNumber($transaction),
+            'transaction' => $transaction->fresh([
+                'customer:id,name,phone,email,address',
+                'vehicle:id,license_plate,make,model,year',
+                'items.part:id,name,variant,sku',
+                'payments',
+            ]),
         ]);
+    }
+    
+    public function update(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'customer_id' => 'required|integer',
+            'vehicle_id' => 'required|integer',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string',
+            'items' => 'required|array|min:1',
+            'items.*.item_type' => 'required|in:part,service',
+            'items.*.part_id' => 'nullable|integer',
+            'items.*.service_name' => 'nullable|string|max:255',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.selling_price' => 'required|numeric|min:0',
+            'items.*.note' => 'nullable|string',
+        ]);
+
+        $transaction = \App\Models\Transaction::query()
+            ->where('branch_id', $user->branch_id)
+            ->where('id', $id)
+            ->with('items')
+            ->firstOrFail();
+
+        if (!in_array($transaction->status, ['quotation', 'invoice'])) {
+            return response()->json([
+                'message' => 'Only quotation or invoice transactions can be edited.'
+            ], 422);
+        }
+
+        $customer = \App\Models\Customer::query()
+            ->where('branch_id', $user->branch_id)
+            ->where('id', $validated['customer_id'])
+            ->firstOrFail();
+
+        $vehicle = \App\Models\Vehicle::query()
+            ->where('branch_id', $user->branch_id)
+            ->where('id', $validated['vehicle_id'])
+            ->where('customer_id', $customer->id)
+            ->firstOrFail();
+
+        \DB::transaction(function () use ($transaction, $validated, $customer, $vehicle) {
+            $transaction->items()->delete();
+
+            $total = 0;
+
+            foreach ($validated['items'] as $item) {
+                $lineTotal = (float) $item['quantity'] * (float) $item['selling_price'];
+
+                $transaction->items()->create([
+                    'part_id' => $item['item_type'] === 'part' ? $item['part_id'] : null,
+                    'item_type' => $item['item_type'],
+                    'service_name' => $item['item_type'] === 'service' ? $item['service_name'] : null,
+                    'service_hours' => null,
+                    'cost_price' => 0,
+                    'selling_price' => $item['selling_price'],
+                    'quantity' => $item['quantity'],
+                    'total_price' => $lineTotal,
+                    'note' => $item['note'] ?? null,
+                ]);
+
+                $total += $lineTotal;
+            }
+
+            $transaction->update([
+                'customer_id' => $customer->id,
+                'vehicle_id' => $vehicle->id,
+                'discount_amount' => $validated['discount_amount'] ?? 0,
+                'notes' => $validated['notes'] ?? null,
+                'total_amount' => $total,
+            ]);
+        });
+
+        return response()->json(
+            $transaction->fresh([
+                'customer:id,name,phone',
+                'vehicle:id,license_plate,make,model,year',
+                'items.part:id,name,variant,sku',
+                'payments',
+            ])
+        );
     }
 }

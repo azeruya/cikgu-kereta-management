@@ -7,10 +7,15 @@ use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\PartController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\TransactionDocumentController;
 
 // PUBLIC routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+
+Route::get('/ping', function () {
+    return response()->json(['ok' => true, 'time' => now()]);
+});
 
 // PROTECTED routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -31,6 +36,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('transactions', [TransactionController::class, 'store']);
     Route::post('transactions/{id}/confirm', [TransactionController::class, 'confirmInvoice']);
     Route::post('transactions/{id}/pay', [TransactionController::class, 'markPaid']);
+    Route::put('transactions/{id}', [TransactionController::class, 'update']);
 
     // expenses
     Route::get('/expenses', [ExpenseController::class, 'index']);
@@ -39,6 +45,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/expenses/{id}', [ExpenseController::class, 'update']);
     Route::delete('/expenses/{id}', [ExpenseController::class, 'destroy']);
     Route::get('expenses/export/csv', [ExpenseController::class, 'exportCsv']);
+
+    Route::get('transactions/{id}/documents/quotation', [TransactionDocumentController::class, 'quotation']);
+    Route::get('transactions/{id}/documents/invoice', [TransactionDocumentController::class, 'invoice']);
+    Route::get('transactions/{id}/documents/receipt', [TransactionDocumentController::class, 'receipt']);
     // only keep this if the method exists and you still need it
     // Route::get('job-orders', [TransactionController::class, 'jobOrders']);
 });
