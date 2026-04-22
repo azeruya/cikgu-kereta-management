@@ -6,6 +6,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\PartController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\ExpenseController;
 
 // PUBLIC routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -31,6 +32,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('transactions/{id}/confirm', [TransactionController::class, 'confirmInvoice']);
     Route::post('transactions/{id}/pay', [TransactionController::class, 'markPaid']);
 
+    // expenses
+    Route::get('/expenses', [ExpenseController::class, 'index']);
+    Route::post('/expenses', [ExpenseController::class, 'store']);
+    Route::get('/expenses/{id}', [ExpenseController::class, 'show']);
+    Route::put('/expenses/{id}', [ExpenseController::class, 'update']);
+    Route::delete('/expenses/{id}', [ExpenseController::class, 'destroy']);
+    Route::get('expenses/export/csv', [ExpenseController::class, 'exportCsv']);
     // only keep this if the method exists and you still need it
     // Route::get('job-orders', [TransactionController::class, 'jobOrders']);
 });

@@ -55,7 +55,12 @@ class TransactionController extends Controller
             ])
             ->firstOrFail();
 
-        return response()->json($transaction);
+        return response()->json([
+        ...$transaction->toArray(),
+        'quotation_number' => $this->quotationNumber($transaction),
+        'invoice_number' => $this->invoiceNumber($transaction),
+        'receipt_number' => $this->receiptNumber($transaction),
+    ]);
     }
 
     // 🔥 CREATE TRANSACTION (CRITICAL)
@@ -96,7 +101,7 @@ public function store(Request $request)
             'customer_id' => $customer->id,
             'vehicle_id' => $vehicle->id,
             'status' => 'quotation',
-            'document_number' => 'TRX-' . now()->format('YmdHis'),
+            'document_number' => 'TRX-' . str_pad((string) time(), 10, '0', STR_PAD_LEFT),
             'total_amount' => 0,
             'discount_amount' => $validated['discount_amount'] ?? 0,
             'notes' => $validated['notes'] ?? null,
@@ -167,6 +172,22 @@ public function store(Request $request)
     });
 }
 
+    // document numbering
+    protected function quotationNumber(Transaction $transaction): string
+    {
+        return 'QUO-' . str_pad((string) $transaction->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    protected function invoiceNumber(Transaction $transaction): string
+    {
+        return 'INV-' . str_pad((string) $transaction->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    protected function receiptNumber(Transaction $transaction): string
+    {
+        return 'REC-' . str_pad((string) $transaction->id, 6, '0', STR_PAD_LEFT);
+    }
+
     // 🔹 UPDATE STATUS (important for workflow)
     public function updateStatus(Request $request, $id)
     {
@@ -213,33 +234,55 @@ public function store(Request $request)
 
     public function confirmInvoice(Request $request, $id)
     {
-        $transaction = Transaction::findOrFail($id);
+        $user = $request->user();
+
+        $transaction = Transaction::query()
+            ->where('branch_id', $user->branch_id)
+            ->where('id', $id)
+            ->firstOrFail();
 
         if ($transaction->status !== 'quotation') {
-            return response()->json(['message' => 'Invalid status'], 400);
+            return response()->json([
+                'message' => 'Only quotation transactions can be confirmed to invoice.'
+            ], 422);
         }
 
         $transaction->update([
             'status' => 'invoice',
-            'invoiced_at' => now()
+            'invoiced_at' => now(),
         ]);
 
-        return response()->json($transaction);
+        return response()->json([
+            'message' => 'Transaction confirmed as invoice.',
+            'transaction' => $transaction,
+            'invoice_number' => $this->invoiceNumber($transaction),
+        ]);
     }
 
     public function markPaid(Request $request, $id)
     {
-        $transaction = Transaction::findOrFail($id);
+        $user = $request->user();
+
+        $transaction = Transaction::query()
+            ->where('branch_id', $user->branch_id)
+            ->where('id', $id)
+            ->firstOrFail();
 
         if ($transaction->status !== 'invoice') {
-            return response()->json(['message' => 'Invalid status'], 400);
+            return response()->json([
+                'message' => 'Only invoice transactions can be marked as paid.'
+            ], 422);
         }
 
         $transaction->update([
             'status' => 'paid',
-            'paid_at' => now()
+            'paid_at' => now(),
         ]);
 
-        return response()->json($transaction);
+        return response()->json([
+            'message' => 'Transaction marked as paid.',
+            'transaction' => $transaction,
+            'receipt_number' => $this->receiptNumber($transaction),
+        ]);
     }
 }
