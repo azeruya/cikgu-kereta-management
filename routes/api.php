@@ -28,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // part custom routes must come BEFORE apiResource('parts')
     Route::get('parts/low-stock', [PartController::class, 'lowStock']);
     Route::get('parts/compatible/{vehicleId}', [PartController::class, 'compatibleParts']);
+    Route::post('parts/{id}/restock', [PartController::class, 'restock']);
     Route::apiResource('parts', PartController::class);
 
     // transactions

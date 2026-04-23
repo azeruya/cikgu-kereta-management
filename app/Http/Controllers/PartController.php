@@ -224,4 +224,28 @@ class PartController extends Controller
 
         return response()->json(['message' => 'Part deleted']);
     }
+
+    public function restock(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'quantity' => 'required|integer|min:1',
+        ]);
+
+        $part = Part::query()
+            ->forBranch($user->branch_id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $updatedPart = DB::transaction(function () use ($part, $validated) {
+            $part->increment('stock', (int) $validated['quantity']);
+            return $part->fresh()->load('compatibilities:id,part_id,make,model,year_from,year_to');
+        });
+
+        return response()->json([
+            'message' => 'Part restocked successfully.',
+            'part' => $updatedPart,
+        ]);
+    }
 }
