@@ -8,6 +8,7 @@ use App\Http\Controllers\PartController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\TransactionDocumentController;
+use App\Http\Controllers\ReportController;
 
 // PUBLIC routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -50,6 +51,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('transactions/{id}/documents/quotation', [TransactionDocumentController::class, 'quotation']);
     Route::get('transactions/{id}/documents/invoice', [TransactionDocumentController::class, 'invoice']);
     Route::get('transactions/{id}/documents/receipt', [TransactionDocumentController::class, 'receipt']);
+
+    // report
+    Route::get('/reports', [ReportController::class, 'index']);
     // only keep this if the method exists and you still need it
     // Route::get('job-orders', [TransactionController::class, 'jobOrders']);
 });
