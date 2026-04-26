@@ -9,6 +9,7 @@ use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\TransactionDocumentController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\DashboardController;
 
 // PUBLIC routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -22,6 +23,8 @@ Route::get('/ping', function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+
+    Route::get('/dashboard', [DashboardController::class, 'index']);
 
     Route::apiResource('customers', CustomerController::class);
     Route::apiResource('vehicles', VehicleController::class);
@@ -54,7 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // report
     Route::get('/reports', [ReportController::class, 'index']);
-    // only keep this if the method exists and you still need it
+    // only keep this if the method exists and still need 
     // Route::get('job-orders', [TransactionController::class, 'jobOrders']);
 });
 
