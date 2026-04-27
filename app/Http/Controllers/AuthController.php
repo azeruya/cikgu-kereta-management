@@ -10,24 +10,33 @@ class AuthController extends Controller
 {
     public function register(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
+            'email' => 'required|string|email|max:255|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
             'branch_id' => 'required|exists:branches,id',
         ]);
 
+        $branchAlreadyHasUser = User::where('branch_id', $validated['branch_id'])->exists();
+
+        if ($branchAlreadyHasUser) {
+            return response()->json([
+                'message' => 'Registration for this branch is closed. Please ask the branch admin to create your account.'
+            ], 403);
+        }
+
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'branch_id' => $request->branch_id
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'branch_id' => $validated['branch_id'],
+            'role' => 'admin',
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'user' => $user,
+            'user' => $user->only(['id', 'name', 'email', 'role', 'branch_id']),
             'token' => $token
         ], 201);
     }
@@ -45,13 +54,12 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
 
-        // 🔥 important
         $user->tokens()->delete();
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'user' => $user->only(['id','name','email','branch_id']),
+            'user' => $user->only(['id', 'name', 'email', 'role', 'branch_id']),
             'token' => $token
         ]);
     }
@@ -63,9 +71,10 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logged out successfully']);
     }
 
-    // get the authenticated user's details
     public function me(Request $request)
     {
-        return response()->json($request->user());
+        return response()->json(
+            $request->user()->only(['id', 'name', 'email', 'role', 'branch_id'])
+        );
     }
 }

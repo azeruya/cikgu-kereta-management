@@ -10,6 +10,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\TransactionDocumentController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\UserController;
 
 // PUBLIC routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -55,15 +56,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('transactions/{id}/documents/invoice', [TransactionDocumentController::class, 'invoice']);
     Route::get('transactions/{id}/documents/receipt', [TransactionDocumentController::class, 'receipt']);
 
-    // report
-    Route::get('/reports', [ReportController::class, 'index']);
     // only keep this if the method exists and still need 
     // Route::get('job-orders', [TransactionController::class, 'jobOrders']);
 });
 
 // ADMIN routes
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
-    Route::get('/admin-test', function () {
-        return response()->json(['message' => 'Hello Admin']);
-    });
+    // users management
+    Route::get('/users', [UserController::class, 'index']);
+    Route::post('/users', [UserController::class, 'store']);
+    Route::put('/users/{id}', [UserController::class, 'update']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy']);
+    
+    // report
+    Route::get('/reports', [ReportController::class, 'index']);
 });
