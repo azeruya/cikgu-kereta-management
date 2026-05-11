@@ -51,6 +51,46 @@ class DashboardController extends Controller
             ->where('stock', '<=', 3)
             ->count();
 
+        $recentTransactions = Transaction::with([
+                'customer:id,name',
+                'vehicle:id,license_plate',
+                'user:id,name',
+            ])
+            ->where('branch_id', $branchId)
+            ->latest('updated_at')
+            ->limit(5)
+            ->get()
+            ->map(function ($trx) {
+                $user = $trx->user?->name ?? 'Staff';
+                $customer = $trx->customer?->name ?? 'Customer';
+                $plate = $trx->vehicle?->license_plate ?? 'vehicle';
+
+                $activityTime = match ($trx->status) {
+                    'quotation' => $trx->quoted_at ?? $trx->created_at,
+                    'invoice' => $trx->invoiced_at ?? $trx->updated_at,
+                    'receipt' => $trx->paid_at ?? $trx->updated_at,
+                    default => $trx->updated_at,
+                };
+
+                $actionText = match ($trx->status) {
+                    'quotation' => 'created quotation',
+                    'invoice' => 'converted quotation to invoice',
+                    'receipt' => 'marked invoice as paid',
+                    default => 'updated transaction',
+                };
+
+                return [
+                    'text' => "<span class='act-bold'>{$user}</span> {$actionText} for {$plate} <span class='act-muted'>({$customer})</span>",
+                    'time' => $activityTime?->diffForHumans(),
+                    'dotClass' => match ($trx->status) {
+                        'receipt' => 'dot-green',
+                        'invoice' => 'dot-blue',
+                        'quotation' => 'dot-amber',
+                        default => 'dot-purple',
+                    },
+                ];
+            });
+
         $summary = [
             'active_invoices' => $activeInvoices,
             'pending_receipts_count' => $pendingReceiptsCount,
@@ -93,7 +133,7 @@ class DashboardController extends Controller
             'today_transactions' => $todayTransactions,
             'weekly_revenue' => $weeklyRevenue,
             'low_stock_items' => $lowStockItems,
-            'recent_activity' => [],
+            'recent_activity' => $recentTransactions,
         ]);
     }
 }

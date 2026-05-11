@@ -54,6 +54,11 @@ class Transaction extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function getAmountPayableAttribute()
     {
         return (float) $this->total_amount - (float) $this->discount_amount;

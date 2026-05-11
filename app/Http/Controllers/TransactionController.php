@@ -77,6 +77,7 @@ class TransactionController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.selling_price' => 'required|numeric|min:0',
             'items.*.note' => 'nullable|string',
+            'user_id' => 'nullable|integer|exists:users,id',
         ]);
 
         return DB::transaction(function () use ($validated, $user) {
@@ -101,6 +102,7 @@ class TransactionController extends Controller
                 'discount_amount' => $validated['discount_amount'] ?? 0,
                 'notes' => $validated['notes'] ?? null,
                 'quoted_at' => now(),
+                'user_id' => auth()->id(),
             ]);
 
             $total = 0;
@@ -367,11 +369,24 @@ class TransactionController extends Controller
 
         if ($transaction->status !== 'invoice') {
             return response()->json([
-                'message' => 'Only invoice transactions can be marked as paid.'
+                'message' => 'Only invoice transactions can receive payment.'
             ], 422);
         }
 
-        DB::transaction(function () use ($transaction, $validated) {
+        $amountPayable =
+            (float) $transaction->total_amount -
+            (float) $transaction->discount_amount;
+
+        $totalPaidBefore = (float) $transaction->payments()->sum('amount_paid');
+        $balanceDue = max($amountPayable - $totalPaidBefore, 0);
+
+        if ((float) $validated['amount_paid'] > $balanceDue) {
+            return response()->json([
+                'message' => 'Payment amount cannot exceed balance due.'
+            ], 422);
+        }
+
+        DB::transaction(function () use ($transaction, $validated, $amountPayable) {
             $transaction->payments()->create([
                 'amount_paid' => $validated['amount_paid'],
                 'payment_method' => $validated['payment_method'],
@@ -379,14 +394,23 @@ class TransactionController extends Controller
                 'payment_date' => $validated['payment_date'] ?? now(),
             ]);
 
-            $transaction->update([
-                'status' => 'receipt',
-                'paid_at' => $validated['payment_date'] ?? now(),
-            ]);
+            $totalPaidAfter = (float) $transaction->payments()->sum('amount_paid');
+
+            if ($totalPaidAfter >= $amountPayable) {
+                $transaction->update([
+                    'status' => 'receipt',
+                    'paid_at' => $validated['payment_date'] ?? now(),
+                ]);
+            } else {
+                $transaction->update([
+                    'status' => 'invoice',
+                    'paid_at' => null,
+                ]);
+            }
         });
 
         return response()->json([
-            'message' => 'Transaction marked as paid.',
+            'message' => 'Payment recorded successfully.',
             'transaction' => $transaction->fresh([
                 'customer:id,name,phone,email,address',
                 'vehicle:id,license_plate,make,model,year',
