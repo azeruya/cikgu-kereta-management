@@ -1,285 +1,550 @@
+@php use Illuminate\Support\Str; @endphp
+
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Receipt</title>
-    <style>
-        body {
-            font-family: DejaVu Sans, sans-serif;
-            font-size: 12px;
-            color: #222;
-            line-height: 1.45;
-        }
+<meta charset="utf-8">
+<title>Receipt</title>
 
-        .header {
-            width: 100%;
-            margin-bottom: 22px;
-        }
+<style>
+    @page {
+        margin: 36px 44px;
+    }
 
-        .header td {
-            border: none;
-            padding: 0;
-            vertical-align: top;
-        }
+    body {
+        font-family: DejaVu Sans, sans-serif;
+        font-size: 11px;
+        color: #1a1a1a;
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        line-height: 1.5;
+    }
 
-        .title {
-            font-size: 24px;
-            font-weight: bold;
-            letter-spacing: 1px;
-        }
+    /* ── Reset ─── */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    td { vertical-align: top; }
 
-        .muted {
-            color: #777;
-            font-size: 11px;
-        }
+    /* ── Utilities ─── */
+    .right  { text-align: right; }
+    .center { text-align: center; }
+    .muted  { color: #999; font-size: 9.5px; }
 
-        .workshop {
-            text-align: right;
-        }
+    /* ── Logo ─── */
+    .logo {
+        width: 110px;
+        height: 110px;
+        border-radius: 6px;
+    }
 
-        .section {
-            margin-bottom: 14px;
-        }
+    /* ── Brand ─── */
+    .brand-name {
+        font-size: 15px;
+        font-weight: bold;
+        color: #111;
+        letter-spacing: -0.2px;
+        line-height: 1.2;
+    }
 
-        .two-col {
-            width: 100%;
-            margin-bottom: 14px;
-        }
+    .brand-tagline {
+        font-size: 8.5px;
+        color: #aaa;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        margin-top: 2px;
+    }
 
-        .two-col td {
-            width: 50%;
-            vertical-align: top;
-            border: none;
-            padding: 0;
-        }
+    .brand-contact {
+        font-size: 9.5px;
+        color: #888;
+        margin-top: 6px;
+        line-height: 1.7;
+    }
 
-        .box {
-            border: 1px solid #e5e5e5;
-            padding: 10px;
-            border-radius: 6px;
-        }
+    /* ── Receipt title block ─── */
+    .receipt-label {
+        font-size: 8.5px;
+        font-weight: bold;
+        letter-spacing: 2.5px;
+        text-transform: uppercase;
+        color: #c1121f;
+        margin-bottom: 2px;
+    }
 
-        .box-title {
-            font-weight: bold;
-            margin-bottom: 6px;
-        }
+    .receipt-number {
+        font-size: 20px;
+        font-weight: bold;
+        color: #111;
+        line-height: 1;
+        margin-bottom: 10px;
+    }
 
-        table.items,
-        table.payments,
-        table.totals {
-            width: 100%;
-            border-collapse: collapse;
-        }
+    .meta-line {
+        font-size: 9.5px;
+        color: #999;
+        margin-bottom: 2px;
+    }
 
-        table.items th,
-        table.payments th {
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-            padding: 8px;
-            font-size: 11px;
-            color: #666;
-            text-transform: uppercase;
-        }
+    .meta-line strong {
+        color: #333;
+        font-weight: bold;
+    }
 
-        table.items td,
-        table.payments td {
-            padding: 8px;
-            border-bottom: 1px solid #f0f0f0;
-        }
+    /* ── Divider ─── */
+    .divider {
+        border-top: 1.5px solid #111;
+        margin: 20px 0;
+    }
 
-        .right {
-            text-align: right;
-        }
+    /* ── Info boxes ─── */
+    .info-box {
+        border: 1px solid #e8e8e8;
+        border-radius: 8px;
+        padding: 12px 14px;
+    }
 
-        .summary-wrap {
-            width: 42%;
-            margin-left: auto;
-            margin-top: 14px;
-        }
+    .eyebrow {
+        font-size: 8px;
+        font-weight: bold;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: #c1121f;
+        margin-bottom: 7px;
+    }
 
-        table.totals td {
-            border: none;
-            padding: 5px 0;
-        }
+    .info-name {
+        font-size: 12px;
+        font-weight: bold;
+        color: #111;
+        margin-bottom: 3px;
+    }
 
-        .grand-total td {
-            border-top: 1px solid #ddd !important;
-            padding-top: 8px !important;
-            font-weight: bold;
-            font-size: 14px;
-        }
+    .info-detail {
+        font-size: 10px;
+        color: #666;
+        line-height: 1.7;
+    }
 
-        .paid-row td {
-            color: #0f7a3a;
-            font-weight: bold;
-        }
+    /* ── Section label ─── */
+    .section-label {
+        font-size: 8px;
+        font-weight: bold;
+        letter-spacing: 1.6px;
+        text-transform: uppercase;
+        color: #bbb;
+        margin-bottom: 8px;
+        margin-top: 20px;
+    }
 
-        .balance-row td {
-            color: #b42318;
-            font-weight: bold;
-        }
+    /* ── Items table ─── */
+    .items-table th {
+        background: #111;
+        color: #c0c0c0;
+        padding: 9px 11px;
+        font-size: 8px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        text-align: left;
+    }
 
-        .footer {
-            margin-top: 36px;
-            padding-top: 12px;
-            border-top: 1px solid #eee;
-            font-size: 11px;
-            color: #666;
-        }
-    </style>
+    .items-table td {
+        padding: 11px 11px;
+        border-bottom: 1px solid #f3f3f3;
+    }
+
+    .items-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .items-table-wrap {
+        border: 1px solid #e8e8e8;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .item-name {
+        font-weight: bold;
+        font-size: 11px;
+        color: #111;
+    }
+
+    .item-sub {
+        font-size: 9.5px;
+        color: #bbb;
+        margin-top: 2px;
+    }
+
+    .badge {
+        display: inline;
+        padding: 2px 7px;
+        border-radius: 3px;
+        font-size: 8px;
+        font-weight: bold;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+    }
+
+    .badge-part    { background: #eef0ff; color: #3730a3; }
+    .badge-service { background: #ecfdf3; color: #166534; }
+
+    /* ── Payment table ─── */
+    .payment-table-wrap {
+        border: 1px solid #e8e8e8;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .payment-table th {
+        background: #111;
+        color: #c0c0c0;
+        padding: 8px 11px;
+        font-size: 8px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        text-align: left;
+    }
+
+    .payment-table td {
+        padding: 10px 11px;
+        border-bottom: 1px solid #f3f3f3;
+        font-size: 10px;
+    }
+
+    .payment-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* ── Summary box ─── */
+    .summary-wrap {
+        border: 1px solid #e8e8e8;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .summary-inner {
+        padding: 14px;
+    }
+
+    .sum-row td {
+        padding: 4px 0;
+        font-size: 10.5px;
+        border-bottom: none;
+    }
+
+    .sum-label { color: #777; }
+    .sum-value { text-align: right; color: #444; }
+
+    .sum-divider {
+        border-top: 1px solid #ebebeb;
+        margin: 8px 0;
+    }
+
+    .sum-total-label {
+        font-size: 12px;
+        font-weight: bold;
+        color: #111;
+        padding: 3px 0;
+    }
+
+    .sum-total-amount {
+        font-size: 17px;
+        font-weight: bold;
+        color: #c1121f;
+        text-align: right;
+        padding: 3px 0;
+    }
+
+    .sum-paid-label { color: #166534; font-weight: bold; font-size: 10.5px; padding: 3px 0; }
+    .sum-paid-value { color: #166534; font-weight: bold; font-size: 10.5px; text-align: right; padding: 3px 0; }
+    .sum-bal-label  { color: #aaa; font-size: 10.5px; padding: 3px 0; }
+    .sum-bal-value  { color: #555; font-size: 10.5px; text-align: right; padding: 3px 0; }
+
+    /* ── Status strip ─── */
+    .status-paid {
+        background: #f0fdf4;
+        color: #166534;
+        text-align: center;
+        padding: 11px;
+        font-size: 11px;
+        font-weight: bold;
+        border-top: 1px solid #dcfce7;
+    }
+
+    .status-partial {
+        background: #fff7ed;
+        color: #c2410c;
+        text-align: center;
+        padding: 11px;
+        font-size: 11px;
+        font-weight: bold;
+        border-top: 1px solid #fed7aa;
+    }
+
+    .status-sub {
+        font-size: 9px;
+        font-weight: normal;
+        color: inherit;
+        margin-top: 2px;
+    }
+
+    /* ── Footer ─── */
+    .footer-divider {
+        border-top: 1.5px solid #111;
+        margin-top: 24px;
+        margin-bottom: 14px;
+    }
+
+    .thanks-text {
+        font-size: 10.5px;
+        color: #666;
+        line-height: 1.8;
+    }
+
+    .thanks-text strong { color: #111; }
+
+    .doc-ref {
+        font-size: 9px;
+        color: #ccc;
+        text-align: right;
+        line-height: 1.8;
+    }
+</style>
 </head>
 
 @php
-    $subtotal = (float) $transaction->total_amount;
-    $discount = (float) ($transaction->discount_amount ?? 0);
-    $total = $subtotal - $discount;
-    $totalPaid = $transaction->payments->sum('amount_paid');
+    $subtotal   = (float) $transaction->total_amount;
+    $discount   = (float) ($transaction->discount_amount ?? 0);
+    $total      = $subtotal - $discount;
+    $totalPaid  = $transaction->payments->sum('amount_paid');
     $balanceDue = max($total - $totalPaid, 0);
 @endphp
 
 <body>
 
-<table class="header">
+{{-- ══════════════════════════════════════════
+     HEADER  — real <table> for DomPDF compat
+══════════════════════════════════════════ --}}
+<table>
     <tr>
-        <td>
-            <div class="title">RECEIPT</div>
-            <div class="muted">Receipt No: {{ 'REC-' . str_pad($transaction->id, 6, '0', STR_PAD_LEFT) }}</div>
-            <div class="muted">Document No: {{ $transaction->document_number ?? '-' }}</div>
-            <div class="muted">Date: {{ optional($transaction->paid_at)->format('d M Y') ?? now()->format('d M Y') }}</div>
+        {{-- Left: Logo + Brand --}}
+        <td style="width: 55%; vertical-align: middle;">
+            <table style="width: auto;">
+                <tr>
+                    <td style="width: 68px; padding-right: 12px; vertical-align: middle;">
+                        <img src="{{ public_path('images/vulcan_bg.png') }}" class="logo" alt="Logo">
+                    </td>
+                    <td style="vertical-align: middle;">
+                        <div class="brand-name">Vulcan Auto Service</div>
+                        <div class="brand-tagline">Workshop Management</div>
+                        <div class="brand-contact">
+                            {{ Str::limit($transaction->branch->location ?? '—', 70) }}<br>
+                            Phone &nbsp;/&nbsp; Email
+                        </div>
+                    </td>
+                </tr>
+            </table>
         </td>
 
-        <td class="workshop">
-            <strong>Cikgu Kereta</strong><br>
-            Workshop Management<br>
-            Address line<br>
-            Phone / Email
+        {{-- Right: Receipt info --}}
+        <td style="width: 45%; text-align: right; vertical-align: middle;">
+            <div class="receipt-label">Receipt</div>
+            <div class="receipt-number">REC-{{ str_pad($transaction->id, 6, '0', STR_PAD_LEFT) }}</div>
+            <div class="meta-line">Doc No. &nbsp;<strong>{{ $transaction->document_number ?? '—' }}</strong></div>
+            <div class="meta-line">Date &nbsp;<strong>{{ optional($transaction->paid_at)->format('d M Y') ?? '—' }}</strong></div>
+            <div class="meta-line">Time &nbsp;<strong>{{ optional($transaction->paid_at)->format('H:i') ?? '—' }}</strong></div>
         </td>
     </tr>
 </table>
 
-<table class="two-col">
+<div class="divider"></div>
+
+{{-- ══════════════════════════════════════════
+     CUSTOMER / VEHICLE
+══════════════════════════════════════════ --}}
+<table>
     <tr>
-        <td style="padding-right: 8px;">
-            <div class="box">
-                <div class="box-title">Customer</div>
-                {{ $transaction->customer->name ?? '-' }}<br>
-                {{ $transaction->customer->phone ?? '-' }}<br>
-                {{ $transaction->customer->email ?? '' }}
+        <td style="width: 50%; padding-right: 8px;">
+            <div class="info-box">
+                <div class="eyebrow">Customer</div>
+                <div class="info-name">{{ $transaction->customer->name ?? '—' }}</div>
+                <div class="info-detail">
+                    {{ $transaction->customer->phone ?? '—' }}<br>
+                    {{ $transaction->customer->email ?? '' }}
+                </div>
             </div>
         </td>
-
-        <td style="padding-left: 8px;">
-            <div class="box">
-                <div class="box-title">Vehicle</div>
-                {{ $transaction->vehicle->license_plate ?? '-' }}<br>
-                {{ $transaction->vehicle->make ?? '' }} {{ $transaction->vehicle->model ?? '' }}<br>
-                {{ $transaction->vehicle->year ?? '' }}
+        <td style="width: 50%; padding-left: 8px;">
+            <div class="info-box">
+                <div class="eyebrow">Vehicle</div>
+                <div class="info-name">{{ $transaction->vehicle->license_plate ?? '—' }}</div>
+                <div class="info-detail">
+                    {{ $transaction->vehicle->make ?? '' }} {{ $transaction->vehicle->model ?? '' }}<br>
+                    {{ $transaction->vehicle->year ?? '' }}
+                </div>
             </div>
         </td>
     </tr>
 </table>
 
-<div class="section">
-    <div class="box-title">Items</div>
+{{-- ══════════════════════════════════════════
+     ITEMS
+══════════════════════════════════════════ --}}
+<div class="section-label">Items</div>
 
-    <table class="items">
+<div class="items-table-wrap">
+    <table class="items-table">
         <thead>
             <tr>
-                <th>Item</th>
-                <th>Type</th>
-                <th class="right">Qty / Hours</th>
-                <th class="right">Unit / Rate</th>
-                <th class="right">Total</th>
+                <th style="width: 5%;">#</th>
+                <th style="width: 37%;">Description</th>
+                <th style="width: 14%;">Type</th>
+                <th class="right" style="width: 11%;">Qty</th>
+                <th class="right" style="width: 16%;">Unit Price</th>
+                <th class="right" style="width: 17%;">Total</th>
             </tr>
         </thead>
-
         <tbody>
-            @foreach($transaction->items as $item)
-                <tr>
-                    <td>
-                        {{ $item->part->name ?? $item->service_name ?? 'Item' }}
-                        @if($item->part?->variant)
-                            <br><span class="muted">{{ $item->part->variant }}</span>
-                        @endif
-                    </td>
-                    <td>{{ ucfirst($item->item_type ?? '-') }}</td>
-                    <td class="right">{{ $item->quantity ?? 1 }}</td>
-                    <td class="right">RM {{ number_format((float) $item->selling_price, 2) }}</td>
-                    <td class="right">RM {{ number_format((float) $item->total_price, 2) }}</td>
-                </tr>
+            @foreach($transaction->items as $index => $item)
+            <tr>
+                <td class="muted">{{ $index + 1 }}</td>
+                <td>
+                    <div class="item-name">{{ $item->part->name ?? $item->service_name ?? 'Item' }}</div>
+                    @if($item->part?->variant)
+                        <div class="item-sub">{{ $item->part->variant }}</div>
+                    @endif
+                    @if($item->note)
+                        <div class="item-sub">{{ $item->note }}</div>
+                    @endif
+                </td>
+                <td>
+                    <span class="badge {{ $item->item_type === 'service' ? 'badge-service' : 'badge-part' }}">
+                        {{ ucfirst($item->item_type ?? '—') }}
+                    </span>
+                </td>
+                <td class="right">{{ $item->quantity ?? 1 }}</td>
+                <td class="right">RM {{ number_format((float) $item->selling_price, 2) }}</td>
+                <td class="right" style="font-weight: bold;">RM {{ number_format((float) $item->total_price, 2) }}</td>
+            </tr>
             @endforeach
         </tbody>
     </table>
 </div>
 
-<div class="section">
-    <div class="box-title">Payment History</div>
+{{-- ══════════════════════════════════════════
+     PAYMENT HISTORY  +  SUMMARY
+══════════════════════════════════════════ --}}
+<table style="margin-top: 20px;">
+    <tr>
+        {{-- Left: Payment History --}}
+        <td style="width: 58%; padding-right: 16px; vertical-align: top;">
+            <div class="section-label" style="margin-top: 0;">Payment History</div>
+            <div class="payment-table-wrap">
+                <table class="payment-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 30%;">Date</th>
+                            <th style="width: 24%;">Method</th>
+                            <th style="width: 26%;">Reference</th>
+                            <th class="right" style="width: 20%;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($transaction->payments as $payment)
+                        <tr>
+                            <td>
+                                {{ optional($payment->payment_date)->format('d M Y') }}<br>
+                                <span class="muted">{{ optional($payment->payment_date)->format('H:i') }}</span>
+                            </td>
+                            <td>{{ ucwords(str_replace('_', ' ', $payment->payment_method ?? '—')) }}</td>
+                            <td class="muted">{{ $payment->payment_reference ?? '—' }}</td>
+                            <td class="right" style="font-weight: bold;">RM {{ number_format((float) $payment->amount_paid, 2) }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </td>
 
-    @if($transaction->payments && $transaction->payments->count())
-        <table class="payments">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Method</th>
-                    <th>Reference</th>
-                    <th class="right">Amount</th>
-                </tr>
-            </thead>
+        {{-- Right: Summary --}}
+        <td style="width: 42%; vertical-align: top;">
+            <div class="section-label" style="margin-top: 0;">Summary</div>
+            <div class="summary-wrap">
+                <div class="summary-inner">
+                    <table>
+                        <tr class="sum-row">
+                            <td class="sum-label">Subtotal</td>
+                            <td class="sum-value">RM {{ number_format($subtotal, 2) }}</td>
+                        </tr>
+                        <tr class="sum-row">
+                            <td class="sum-label">Discount</td>
+                            <td class="sum-value">&minus; RM {{ number_format($discount, 2) }}</td>
+                        </tr>
+                    </table>
 
-            <tbody>
-                @foreach($transaction->payments as $payment)
-                    <tr>
-                        <td>{{ optional($payment->payment_date)->format('d M Y H:i') ?? '-' }}</td>
-                        <td>{{ ucwords(str_replace('_', ' ', $payment->payment_method ?? '-')) }}</td>
-                        <td>{{ $payment->payment_reference ?? '-' }}</td>
-                        <td class="right">RM {{ number_format((float) $payment->amount_paid, 2) }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    @else
-        <div class="box muted">No payment records found.</div>
-    @endif
-</div>
+                    <div class="sum-divider"></div>
 
-<div class="summary-wrap">
-    <table class="totals">
-        <tr>
-            <td>Subtotal</td>
-            <td class="right">RM {{ number_format($subtotal, 2) }}</td>
-        </tr>
+                    <table>
+                        <tr>
+                            <td class="sum-total-label">Total</td>
+                            <td class="sum-total-amount">RM {{ number_format($total, 2) }}</td>
+                        </tr>
+                        <tr>
+                            <td style="height: 8px;"></td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td class="sum-paid-label">Paid</td>
+                            <td class="sum-paid-value">RM {{ number_format($totalPaid, 2) }}</td>
+                        </tr>
+                        <tr>
+                            <td class="sum-bal-label">Balance Due</td>
+                            <td class="sum-bal-value">RM {{ number_format($balanceDue, 2) }}</td>
+                        </tr>
+                    </table>
+                </div>
 
-        <tr>
-            <td>Discount</td>
-            <td class="right">RM {{ number_format($discount, 2) }}</td>
-        </tr>
+                @if($balanceDue > 0)
+                    <div class="status-partial">
+                        Partially Paid
+                        <div class="status-sub">Balance: RM {{ number_format($balanceDue, 2) }}</div>
+                    </div>
+                @else
+                    <div class="status-paid">
+                        Fully Paid
+                        <div class="status-sub">Payment received in full.</div>
+                    </div>
+                @endif
+            </div>
+        </td>
+    </tr>
+</table>
 
-        <tr class="grand-total">
-            <td>Total</td>
-            <td class="right">RM {{ number_format($total, 2) }}</td>
-        </tr>
+{{-- ══════════════════════════════════════════
+     FOOTER
+══════════════════════════════════════════ --}}
+<div class="footer-divider"></div>
 
-        <tr class="paid-row">
-            <td>Total Paid</td>
-            <td class="right">RM {{ number_format($totalPaid, 2) }}</td>
-        </tr>
-
-        <tr class="{{ $balanceDue > 0 ? 'balance-row' : '' }}">
-            <td>Balance Due</td>
-            <td class="right">RM {{ number_format($balanceDue, 2) }}</td>
-        </tr>
-    </table>
-</div>
-
-<div style="clear: both;"></div>
-
-<div class="footer">
-    @if($balanceDue > 0)
-        Partial payment received. Remaining balance: RM {{ number_format($balanceDue, 2) }}.
-    @else
-        Payment received in full. Thank you for your business.
-    @endif
-</div>
+<table>
+    <tr>
+        <td style="width: 60%; vertical-align: middle;">
+            <div class="thanks-text">
+                Thank you for trusting <strong>Vulcan Auto Service.</strong><br>
+                We look forward to serving you again.
+            </div>
+        </td>
+        <td style="width: 40%; vertical-align: middle;">
+            <div class="doc-ref">
+                {{ $transaction->document_number ?? '' }}<br>
+                REC-{{ str_pad($transaction->id, 6, '0', STR_PAD_LEFT) }}
+            </div>
+        </td>
+    </tr>
+</table>
 
 </body>
 </html>
