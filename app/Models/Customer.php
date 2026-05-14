@@ -29,4 +29,9 @@ class Customer extends Model
     {
         return $this->hasMany(Transaction::class);
     }
+
+    public function onlineRequests()
+    {
+        return $this->hasMany(OnlineRequest::class);
+    }
 }

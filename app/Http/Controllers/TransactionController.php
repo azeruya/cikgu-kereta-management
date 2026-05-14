@@ -65,20 +65,20 @@ class TransactionController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
-            'customer_id' => 'required|integer',
-            'vehicle_id' => 'required|integer',
-            'discount_amount' => 'nullable|numeric|min:0',
-            'notes' => 'nullable|string',
-            'items' => 'required|array|min:1',
+    'customer_id' => 'required|integer',
+    'vehicle_id' => 'required|integer',
+    'discount_amount' => 'nullable|numeric|min:0',
+    'notes' => 'nullable|string',
+    'online_request_id' => 'nullable|integer|exists:online_requests,id',
+    'items' => 'required|array|min:1',
 
-            'items.*.item_type' => 'required|in:part,service',
-            'items.*.part_id' => 'nullable|integer',
-            'items.*.service_name' => 'nullable|string|max:255',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.selling_price' => 'required|numeric|min:0',
-            'items.*.note' => 'nullable|string',
-            'user_id' => 'nullable|integer|exists:users,id',
-        ]);
+    'items.*.item_type' => 'required|in:part,service',
+    'items.*.part_id' => 'nullable|integer',
+    'items.*.service_name' => 'nullable|string|max:255',
+    'items.*.quantity' => 'required|numeric|min:0.1',
+    'items.*.selling_price' => 'required|numeric|min:0',
+    'items.*.note' => 'nullable|string',
+]);
 
         return DB::transaction(function () use ($validated, $user) {
             $customer = Customer::query()
@@ -157,8 +157,16 @@ class TransactionController extends Controller
             }
 
             $transaction->update([
-                'total_amount' => $total
-            ]);
+    'total_amount' => $total
+]);
+
+if (!empty($validated['online_request_id'])) {
+    \App\Models\OnlineRequest::where('branch_id', $user->branch_id)
+        ->where('id', $validated['online_request_id'])
+        ->update([
+            'status' => 'converted',
+        ]);
+}
 
             return response()->json(
                 $transaction->load([

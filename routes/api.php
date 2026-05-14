@@ -11,6 +11,7 @@ use App\Http\Controllers\TransactionDocumentController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\OnlineRequestImportController;
 
 // PUBLIC routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -55,6 +56,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('transactions/{id}/documents/quotation', [TransactionDocumentController::class, 'quotation']);
     Route::get('transactions/{id}/documents/invoice', [TransactionDocumentController::class, 'invoice']);
     Route::get('transactions/{id}/documents/receipt', [TransactionDocumentController::class, 'receipt']);
+
+    Route::get('/online-requests', [OnlineRequestImportController::class, 'index']);
+    Route::post('/online-requests/import', [OnlineRequestImportController::class, 'import']);
+    Route::post('/online-requests/{id}/convert', [OnlineRequestImportController::class, 'convert']);
+    Route::get('/online-requests/{id}', [OnlineRequestImportController::class, 'show']);
+    
 
     // only keep this if the method exists and still need 
     // Route::get('job-orders', [TransactionController::class, 'jobOrders']);

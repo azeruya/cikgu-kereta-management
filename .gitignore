@@ -17,6 +17,7 @@ yarn-error.log
 /public/build
 
 /storage/*
+/storage/app/google/*.json
 !/storage/app/public
 !/storage/framework/
 !/storage/logs/
