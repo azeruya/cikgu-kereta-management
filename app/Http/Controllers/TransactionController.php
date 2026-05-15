@@ -15,26 +15,35 @@ class TransactionController extends Controller
     {
         $user = $request->user();
 
-        $transactions = Transaction::query()
+        $perPage = (int) $request->get('per_page', 8);
+        $perPage = min(max($perPage, 5), 50);
+
+        $query = Transaction::query()
             ->forBranch($user->branch_id)
-            ->status($request->status)
             ->with([
-                'customer:id,name',
-                'vehicle:id,license_plate'
+                'customer:id,name,phone',
+                'vehicle:id,license_plate,make,model,year',
             ])
             ->select([
                 'id',
+                'branch_id',
                 'customer_id',
                 'vehicle_id',
+                'document_number',
                 'status',
                 'total_amount',
                 'discount_amount',
-                'created_at'
+                'created_at',
             ])
-            ->latest()
-            ->paginate(15);
+            ->latest();
 
-        return response()->json($transactions);
+        if ($request->filled('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        return response()->json(
+            $query->paginate($perPage)
+        );
     }
 
     public function show(Request $request, $id)
