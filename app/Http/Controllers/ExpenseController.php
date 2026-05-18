@@ -12,11 +12,23 @@ class ExpenseController extends Controller
     {
         $user = $request->user();
 
-        $query = Expense::query()
-            ->where('branch_id', $user->branch_id);
+        $perPage = (int) $request->get('per_page', 8);
+        $perPage = min(max($perPage, 5), 50);
 
-        // 🔍 filters
-        if ($request->filled('category')) {
+        $query = Expense::query()
+            ->where('branch_id', $user->branch_id)
+            ->select([
+                'id',
+                'branch_id',
+                'category',
+                'description',
+                'amount',
+                'expense_date',
+                'receipt_file',
+                'created_at',
+            ]);
+
+        if ($request->filled('category') && $request->category !== 'all') {
             $query->where('category', $request->category);
         }
 
@@ -29,31 +41,78 @@ class ExpenseController extends Controller
         }
 
         if ($request->filled('search')) {
-            $q = $request->search;
-            $query->where(function ($sub) use ($q) {
-                $sub->where('category', 'like', "%$q%")
-                    ->orWhere('description', 'like', "%$q%");
+            $search = $request->search;
+
+            $query->where(function ($q) use ($search) {
+                $q->where('category', 'ilike', "%{$search}%")
+                ->orWhere('description', 'ilike', "%{$search}%");
             });
         }
 
-        $expenses = $query
-            ->orderByDesc('expense_date')
-            ->paginate(10);
+        return response()->json(
+            $query
+                ->orderByDesc('expense_date')
+                ->orderByDesc('id')
+                ->paginate($perPage)
+        );
+    }
 
-        // 📊 summary (IMPORTANT)
-        $total = (clone $query)->sum('amount');
+    public function summary(Request $request)
+    {
+        $user = $request->user();
 
-        $monthly = (clone $query)
-            ->whereMonth('expense_date', now()->month)
-            ->whereYear('expense_date', now()->year)
-            ->sum('amount');
+        $query = Expense::query()
+            ->where('branch_id', $user->branch_id);
+
+        if ($request->filled('category') && $request->category !== 'all') {
+            $query->where('category', $request->category);
+        }
+
+        if ($request->filled('from_date')) {
+            $query->whereDate('expense_date', '>=', $request->from_date);
+        }
+
+        if ($request->filled('to_date')) {
+            $query->whereDate('expense_date', '<=', $request->to_date);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+
+            $query->where(function ($q) use ($search) {
+                $q->where('category', 'ilike', "%{$search}%")
+                ->orWhere('description', 'ilike', "%{$search}%");
+            });
+        }
+
+        $summary = [
+            'total_records' => (clone $query)->count(),
+            'total_expenses' => (clone $query)->sum('amount'),
+            'this_month' => (clone $query)
+                ->whereMonth('expense_date', now()->month)
+                ->whereYear('expense_date', now()->year)
+                ->sum('amount'),
+        ];
+
+        $monthlyTrend = (clone $query)
+            ->selectRaw("TO_CHAR(expense_date, 'Mon YYYY') as label")
+            ->selectRaw("DATE_TRUNC('month', expense_date) as month_key")
+            ->selectRaw("SUM(amount) as total")
+            ->groupByRaw("DATE_TRUNC('month', expense_date), TO_CHAR(expense_date, 'Mon YYYY')")
+            ->orderByRaw("DATE_TRUNC('month', expense_date)")
+            ->limit(6)
+            ->get();
+
+        $categoryTotals = (clone $query)
+            ->selectRaw('category, SUM(amount) as total')
+            ->groupBy('category')
+            ->orderByDesc('total')
+            ->get();
 
         return response()->json([
-            ...$expenses->toArray(),
-            'summary' => [
-                'total' => $total,
-                'monthly' => $monthly,
-            ]
+            'summary' => $summary,
+            'monthly_trend' => $monthlyTrend,
+            'category_totals' => $categoryTotals,
         ]);
     }
 
@@ -72,7 +131,9 @@ class ExpenseController extends Controller
         $path = null;
 
         if ($request->hasFile('receipt_file')) {
-            $path = $request->file('receipt_file')->store('receipts', 'public');
+            $path = $request
+                ->file('receipt_file')
+                ->store('receipts', 'public');
         }
 
         $expense = Expense::create([
@@ -119,7 +180,9 @@ class ExpenseController extends Controller
         $path = $expense->receipt_file;
 
         if ($request->hasFile('receipt_file')) {
-            $path = $request->file('receipt_file')->store('receipts', 'public');
+            $path = $request
+                ->file('receipt_file')
+                ->store('receipts', 'public');
         }
 
         $expense->update([

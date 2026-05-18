@@ -10,26 +10,30 @@ use Illuminate\Support\Facades\DB;
 class PartController extends Controller
 {
     public function index(Request $request)
-    {
-        $user = $request->user();
+{
+    $user = $request->user();
 
-        $parts = Part::query()
-            ->forBranch($user->branch_id)
-            ->with('compatibilities:id,part_id,make,model,year_from,year_to')
-            ->when($request->filled('search'), function ($query) use ($request) {
-                $search = $request->search;
+    $perPage = (int) $request->get('per_page', 6);
+    $perPage = min(max($perPage, 5), 50);
 
-                $query->where(function ($q) use ($search) {
-                    $q->where('name', 'ilike', "%{$search}%")
-                      ->orWhere('variant', 'ilike', "%{$search}%")
-                      ->orWhere('sku', 'ilike', "%{$search}%");
-                });
-            })
-            ->orderBy('name')
-            ->paginate(20);
+    $query = Part::query()
+        ->forBranch($user->branch_id)
+        ->with('compatibilities:id,part_id,make,model,year_from,year_to')
+        ->when($request->filled('search'), function ($query) use ($request) {
+            $search = $request->search;
 
-        return response()->json($parts);
-    }
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'ilike', "%{$search}%")
+                    ->orWhere('variant', 'ilike', "%{$search}%")
+                    ->orWhere('sku', 'ilike', "%{$search}%");
+            });
+        })
+        ->orderBy('name');
+
+    return response()->json(
+        $query->paginate($perPage)
+    );
+}
 
     public function lowStock(Request $request)
     {
