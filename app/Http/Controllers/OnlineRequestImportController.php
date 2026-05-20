@@ -32,23 +32,23 @@ class OnlineRequestImportController extends Controller
         $dataRows = array_slice($rows, 1);
 
         $imported = 0;
-$skipped = 0;
+        $skipped = 0;
 
 
-foreach ($dataRows as $rowIndex => $row) {
+        foreach ($dataRows as $rowIndex => $row) {
             $data = $this->mapRow($headers, $row);
 
-if (empty($data['name']) || empty($data['phone']) || empty($data['plate'])) {
-    $skipped++;
-    continue;
-}
+        if (empty($data['name']) || empty($data['phone']) || empty($data['plate'])) {
+            $skipped++;
+            continue;
+        }
 
-            $hash = $this->makeRowHash($data);
+        $hash = $this->makeRowHash($data);
 
-if (OnlineRequest::where('external_row_hash', $hash)->exists()) {
-    $skipped++;
-    continue;
-}
+        if (OnlineRequest::where('external_row_hash', $hash)->exists()) {
+            $skipped++;
+            continue;
+        }
 
             DB::transaction(function () use ($data, $hash, $user, &$imported) {
                 $customer = Customer::firstOrCreate(
@@ -101,11 +101,11 @@ if (OnlineRequest::where('external_row_hash', $hash)->exists()) {
             });
         }
 
-return response()->json([
-    'message' => "{$imported} online request(s) imported.",
-    'imported' => $imported,
-    'skipped' => $skipped,
-]);
+        return response()->json([
+            'message' => "{$imported} online request(s) imported.",
+            'imported' => $imported,
+            'skipped' => $skipped,
+        ]);
     }
 
     public function index(Request $request)
@@ -125,43 +125,43 @@ return response()->json([
     }
 
     public function convert(Request $request, $id)
-{
-    $user = $request->user();
+    {
+        $user = $request->user();
 
-    $onlineRequest = OnlineRequest::where('branch_id', $user->branch_id)
-        ->where('id', $id)
-        ->with(['customer', 'vehicle'])
-        ->firstOrFail();
+        $onlineRequest = OnlineRequest::where('branch_id', $user->branch_id)
+            ->where('id', $id)
+            ->with(['customer', 'vehicle'])
+            ->firstOrFail();
 
-    if ($onlineRequest->status === 'converted') {
+        if ($onlineRequest->status === 'converted') {
+            return response()->json([
+                'message' => 'This online request has already been converted.',
+                'request' => $onlineRequest,
+            ], 422);
+        }
+
         return response()->json([
-            'message' => 'This online request has already been converted.',
-            'request' => $onlineRequest,
-        ], 422);
-    }
-
-return response()->json([
-    'message' => 'Online request ready for conversion.',
-    'request' => $onlineRequest->fresh(['customer', 'vehicle']),
-    'redirect' => [
-        'customer_id' => $onlineRequest->customer_id,
-        'vehicle_id' => $onlineRequest->vehicle_id,
-        'request_id' => $onlineRequest->id,
-    ],
-]);
+            'message' => 'Online request ready for conversion.',
+            'request' => $onlineRequest->fresh(['customer', 'vehicle']),
+            'redirect' => [
+                'customer_id' => $onlineRequest->customer_id,
+                'vehicle_id' => $onlineRequest->vehicle_id,
+                'request_id' => $onlineRequest->id,
+            ],
+    ]);
 }
 
     public function show(Request $request, $id)
-{
-    $user = $request->user();
+    {
+        $user = $request->user();
 
-    $onlineRequest = OnlineRequest::where('branch_id', $user->branch_id)
-        ->where('id', $id)
-        ->with(['customer', 'vehicle'])
-        ->firstOrFail();
+        $onlineRequest = OnlineRequest::where('branch_id', $user->branch_id)
+            ->where('id', $id)
+            ->with(['customer', 'vehicle'])
+            ->firstOrFail();
 
-    return response()->json($onlineRequest);
-}
+        return response()->json($onlineRequest);
+    }
 
     private function readGoogleSheetRows(): array
     {
@@ -169,9 +169,34 @@ return response()->json([
         $client->setApplicationName('Vulcan Auto Service');
         $client->setScopes([Sheets::SPREADSHEETS_READONLY]);
 
-        $credentialsPath = base_path(env('GOOGLE_SHEETS_CREDENTIALS'));
+        /*
+        * Production/Render:
+        * Use full Google service account JSON from environment variable.
+        *
+        * Local development:
+        * Fallback to JSON file path from GOOGLE_SHEETS_CREDENTIALS.
+        */
+        $serviceAccountJson = env('GOOGLE_SERVICE_ACCOUNT_JSON');
 
-        $client->setAuthConfig($credentialsPath);
+        if (!empty($serviceAccountJson)) {
+            $credentials = json_decode($serviceAccountJson, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new \Exception(
+                    'Invalid GOOGLE_SERVICE_ACCOUNT_JSON: ' . json_last_error_msg()
+                );
+            }
+
+            $client->setAuthConfig($credentials);
+        } else {
+            $credentialsPath = base_path(env('GOOGLE_SHEETS_CREDENTIALS'));
+
+            if (!file_exists($credentialsPath)) {
+                throw new \Exception("Google Sheets credentials file not found at: {$credentialsPath}");
+            }
+
+            $client->setAuthConfig($credentialsPath);
+        }
 
         $service = new Sheets($client);
 
