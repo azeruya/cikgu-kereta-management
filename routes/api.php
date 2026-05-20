@@ -21,6 +21,14 @@ Route::get('/health', function () {
     ]);
 });
 
+// routes/web.php
+Route::get('/health-web', function () {
+    return response()->json([
+        'status' => 'ok',
+        'message' => 'Web route is running',
+    ]);
+});
+
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
