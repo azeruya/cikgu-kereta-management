@@ -14,6 +14,13 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\OnlineRequestImportController;
 
 // PUBLIC routes
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'message' => 'API is running',
+    ]);
+});
+
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
