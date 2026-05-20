@@ -21,7 +21,7 @@ return [
 
     'allowed_origins' => [
         'http://localhost:5173',
-        'https://your-vercel-app.vercel.app',
+        'https://vulcan-auto.vercel.app',
     ],
 
     'allowed_origins_patterns' => [],
