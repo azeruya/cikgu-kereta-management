@@ -74,22 +74,22 @@ class TransactionController extends Controller
         $user = $request->user();
 
         $validated = $request->validate([
-    'customer_id' => 'required|integer',
-    'vehicle_id' => 'required|integer',
-    'discount_amount' => 'nullable|numeric|min:0',
-    'notes' => 'nullable|string',
-    'online_request_id' => 'nullable|integer|exists:online_requests,id',
-    'items' => 'required|array|min:1',
+            'customer_id' => 'required|integer',
+            'vehicle_id' => 'required|integer',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string',
+            'online_request_id' => 'nullable|integer|exists:online_requests,id',
+            'items' => 'required|array|min:1',
 
-    'items.*.item_type' => 'required|in:part,service',
-    'items.*.part_id' => 'nullable|integer',
-    'items.*.service_name' => 'nullable|string|max:255',
-    'items.*.quantity' => 'required|numeric|min:0.1',
-    'items.*.selling_price' => 'required|numeric|min:0',
-    'items.*.note' => 'nullable|string',
-]);
+            'items.*.item_type' => 'required|in:part,service',
+            'items.*.part_id' => 'nullable|integer',
+            'items.*.service_name' => 'nullable|string|max:255',
+            'items.*.quantity' => 'required|numeric|min:0.1',
+            'items.*.selling_price' => 'required|numeric|min:0',
+            'items.*.note' => 'nullable|string',
+        ]);
 
-        return DB::transaction(function () use ($validated, $user) {
+                $transaction = DB::transaction(function () use ($validated, $user) {
             $customer = Customer::query()
                 ->where('branch_id', $user->branch_id)
                 ->where('id', $validated['customer_id'])
@@ -111,7 +111,7 @@ class TransactionController extends Controller
                 'discount_amount' => $validated['discount_amount'] ?? 0,
                 'notes' => $validated['notes'] ?? null,
                 'quoted_at' => now(),
-                'user_id' => auth()->id(),
+                'user_id' => $user->id,
             ]);
 
             $total = 0;
@@ -131,7 +131,7 @@ class TransactionController extends Controller
 
             foreach ($validated['items'] as $item) {
                 $sellingPrice = (float) $item['selling_price'];
-                $quantity = (int) $item['quantity'];
+                $quantity = (float) $item['quantity'];
                 $lineTotal = $sellingPrice * $quantity;
 
                 $itemData = [
@@ -166,26 +166,27 @@ class TransactionController extends Controller
             }
 
             $transaction->update([
-    'total_amount' => $total
-]);
+                'total_amount' => $total,
+            ]);
 
-if (!empty($validated['online_request_id'])) {
-    \App\Models\OnlineRequest::where('branch_id', $user->branch_id)
-        ->where('id', $validated['online_request_id'])
-        ->update([
-            'status' => 'converted',
-        ]);
-}
+            if (!empty($validated['online_request_id'])) {
+                \App\Models\OnlineRequest::where('branch_id', $user->branch_id)
+                    ->where('id', $validated['online_request_id'])
+                    ->update([
+                        'status' => 'converted',
+                    ]);
+            }
 
-            return response()->json(
-                $transaction->load([
-                    'customer:id,name,phone',
-                    'vehicle:id,license_plate,make,model,year',
-                    'items.part:id,name,variant,sku'
-                ]),
-                201
-            );
+            return $transaction;
         });
+
+        $transaction->load([
+            'customer:id,name,phone',
+            'vehicle:id,license_plate,make,model,year',
+            'items.part:id,name,variant,sku',
+        ]);
+
+        return response()->json($transaction, 201);
     }
 
     public function update(Request $request, $id)
@@ -229,77 +230,79 @@ if (!empty($validated['online_request_id'])) {
             ->where('customer_id', $customer->id)
             ->firstOrFail();
 
-        return DB::transaction(function () use ($transaction, $validated, $customer, $vehicle, $user) {
-            $transaction->items()->delete();
+        $transaction = DB::transaction(function () use ($transaction, $validated, $customer, $vehicle, $user) {
+    $transaction->items()->delete();
 
-            $total = 0;
+    $total = 0;
 
-            $partIds = collect($validated['items'])
-                ->where('item_type', 'part')
-                ->pluck('part_id')
-                ->filter()
-                ->unique()
-                ->values();
+    $partIds = collect($validated['items'])
+        ->where('item_type', 'part')
+        ->pluck('part_id')
+        ->filter()
+        ->unique()
+        ->values();
 
-            $parts = Part::query()
-                ->where('branch_id', $user->branch_id)
-                ->whereIn('id', $partIds)
-                ->get()
-                ->keyBy('id');
+    $parts = Part::query()
+        ->where('branch_id', $user->branch_id)
+        ->whereIn('id', $partIds)
+        ->get()
+        ->keyBy('id');
 
-            foreach ($validated['items'] as $item) {
-                $sellingPrice = (float) $item['selling_price'];
-                $quantity = (int) $item['quantity'];
-                $lineTotal = $sellingPrice * $quantity;
+    foreach ($validated['items'] as $item) {
+        $sellingPrice = (float) $item['selling_price'];
+        $quantity = (float) $item['quantity'];
+        $lineTotal = $sellingPrice * $quantity;
 
-                $itemData = [
-                    'item_type' => $item['item_type'],
-                    'part_id' => null,
-                    'service_name' => null,
-                    'quantity' => $quantity,
-                    'selling_price' => $sellingPrice,
-                    'total_price' => $lineTotal,
-                    'note' => $item['note'] ?? null,
-                    'service_hours' => null,
-                    'cost_price' => 0,
-                ];
+        $itemData = [
+            'item_type' => $item['item_type'],
+            'part_id' => null,
+            'service_name' => null,
+            'quantity' => $quantity,
+            'selling_price' => $sellingPrice,
+            'total_price' => $lineTotal,
+            'note' => $item['note'] ?? null,
+            'service_hours' => null,
+            'cost_price' => 0,
+        ];
 
-                if ($item['item_type'] === 'part') {
-                    $part = $parts[$item['part_id']] ?? null;
+        if ($item['item_type'] === 'part') {
+            $part = $parts[$item['part_id']] ?? null;
 
-                    if (!$part) {
-                        abort(422, 'Selected part is invalid for this branch.');
-                    }
-
-                    $itemData['part_id'] = $part->id;
-                    $itemData['cost_price'] = $part->cost_price;
-                }
-
-                if ($item['item_type'] === 'service') {
-                    $itemData['service_name'] = $item['service_name'] ?? null;
-                }
-
-                $transaction->items()->create($itemData);
-                $total += $lineTotal;
+            if (!$part) {
+                abort(422, 'Selected part is invalid for this branch.');
             }
 
-            $transaction->update([
-                'customer_id' => $customer->id,
-                'vehicle_id' => $vehicle->id,
-                'discount_amount' => $validated['discount_amount'] ?? 0,
-                'notes' => $validated['notes'] ?? null,
-                'total_amount' => $total,
-            ]);
+            $itemData['part_id'] = $part->id;
+            $itemData['cost_price'] = $part->cost_price;
+        }
 
-            return response()->json(
-                $transaction->fresh([
-                    'customer:id,name,phone',
-                    'vehicle:id,license_plate,make,model,year',
-                    'items.part:id,name,variant,sku',
-                    'payments',
-                ])
-            );
-        });
+        if ($item['item_type'] === 'service') {
+            $itemData['service_name'] = $item['service_name'] ?? null;
+        }
+
+        $transaction->items()->create($itemData);
+        $total += $lineTotal;
+    }
+
+    $transaction->update([
+        'customer_id' => $customer->id,
+        'vehicle_id' => $vehicle->id,
+        'discount_amount' => $validated['discount_amount'] ?? 0,
+        'notes' => $validated['notes'] ?? null,
+        'total_amount' => $total,
+    ]);
+
+    return $transaction;
+});
+
+$transaction = $transaction->fresh([
+    'customer:id,name,phone',
+    'vehicle:id,license_plate,make,model,year',
+    'items.part:id,name,variant,sku',
+    'payments',
+]);
+
+return response()->json($transaction);
     }
 
     public function confirmInvoice(Request $request, $id)
