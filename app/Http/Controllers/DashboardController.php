@@ -40,7 +40,6 @@ class DashboardController extends Controller
         ->with([
             'customer:id,name',
             'vehicle:id,license_plate',
-            'items:id,transaction_id,part_id,item_type,service_name,note',
             'items.part:id,name',
         ])
         ->where('branch_id', $branchId)
