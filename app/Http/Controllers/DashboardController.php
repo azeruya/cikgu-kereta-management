@@ -27,32 +27,21 @@ class DashboardController extends Controller
         | Today's transactions
         |--------------------------------------------------------------------------
         */
-        $todayTransactions = Transaction::select([
-            'id',
-            'customer_id',
-            'vehicle_id',
-            'branch_id',
-            'status',
-            'total_amount',
-            'created_at',
-            'updated_at',
-        ])
-        ->with([
-            'customer:id,name',
-            'vehicle:id,license_plate',
-            'items.part:id,name',
-        ])
-        ->where('branch_id', $branchId)
-        ->whereBetween('created_at', [$todayStart, $todayEnd])
-        ->latest()
-        ->limit(5)
-        ->get();
+        $todayTransactions = Transaction::with([
+                'customer:id,name',
+                'vehicle:id,license_plate',
+                'items.part:id,name',
+            ])
+            ->where('branch_id', $branchId)
+            ->whereBetween('created_at', [$todayStart, $todayEnd])
+            ->latest()
+            ->limit(5)
+            ->get();
 
         /*
         |--------------------------------------------------------------------------
         | Transaction summary
         |--------------------------------------------------------------------------
-        | One query for invoice count and pending invoice amount.
         */
         $transactionSummary = Transaction::where('branch_id', $branchId)
             ->selectRaw("
@@ -67,9 +56,8 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Low stock
+        | Low stock summary
         |--------------------------------------------------------------------------
-        | One query for count values, one query for the displayed list.
         */
         $lowStockStats = Part::where('branch_id', $branchId)
             ->whereColumn('stock', '<=', 'min_stock_threshold')
@@ -79,14 +67,7 @@ class DashboardController extends Controller
             ")
             ->first();
 
-        $lowStockItems = Part::select([
-                'id',
-                'name',
-                'stock',
-                'min_stock_threshold',
-                'branch_id',
-            ])
-            ->where('branch_id', $branchId)
+        $lowStockItems = Part::where('branch_id', $branchId)
             ->whereColumn('stock', '<=', 'min_stock_threshold')
             ->orderBy('stock')
             ->limit(5)
@@ -96,30 +77,18 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | Recent activity
         |--------------------------------------------------------------------------
+        | No user_id because transactions table does not have user_id.
         */
-        $recentTransactions = Transaction::select([
-                'id',
-                'customer_id',
-                'vehicle_id',
-                'user_id',
-                'status',
-                'quoted_at',
-                'invoiced_at',
-                'paid_at',
-                'created_at',
-                'updated_at',
-            ])
-            ->with([
+        $recentTransactions = Transaction::with([
                 'customer:id,name',
                 'vehicle:id,license_plate',
-                'user:id,name',
             ])
             ->where('branch_id', $branchId)
             ->latest('updated_at')
             ->limit(5)
             ->get()
             ->map(function ($trx) {
-                $staffName = e($trx->user?->name ?? 'Staff');
+                $staffName = 'Staff';
                 $customer = e($trx->customer?->name ?? 'Customer');
                 $plate = e($trx->vehicle?->license_plate ?? 'vehicle');
 
@@ -153,7 +122,6 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | Weekly revenue
         |--------------------------------------------------------------------------
-        | One query instead of 7 queries.
         */
         $weeklyRevenue = [];
 
