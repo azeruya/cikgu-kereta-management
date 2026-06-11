@@ -24,7 +24,6 @@ class TransactionController extends Controller
             'customer:id,name,phone',
             'vehicle:id,license_plate,make,model,year',
         ])
-        ->withSum('payments as total_paid', 'amount_paid')
         ->select([
             'id',
             'branch_id',
@@ -36,6 +35,7 @@ class TransactionController extends Controller
             'discount_amount',
             'created_at',
         ])
+        ->withSum('payments as total_paid', 'amount_paid')
         ->latest();
 
         if ($request->filled('status') && $request->status !== 'all') {
