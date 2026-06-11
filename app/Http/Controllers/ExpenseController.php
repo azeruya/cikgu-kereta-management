@@ -180,11 +180,13 @@ class ExpenseController extends Controller
         $path = $expense->receipt_file;
 
         if ($request->hasFile('receipt_file')) {
-            // Delete old Supabase receipt first
+            // Upload new receipt first
+            $newPath = $this->uploadReceiptToSupabase($request->file('receipt_file'));
+
+            // Delete old receipt only after new upload succeeds
             $this->deleteReceiptFromSupabase($expense->receipt_file);
 
-            // Upload new receipt to Supabase
-            $path = $this->uploadReceiptToSupabase($request->file('receipt_file'));
+            $path = $newPath;
         }
 
         $expense->update([
@@ -276,7 +278,7 @@ class ExpenseController extends Controller
     {
         $extension = $file->getClientOriginalExtension();
 
-        $fileName = 'receipts/' . now()->format('Y/m') . '/' . Str::uuid() . '.' . $extension;
+        $fileName = now()->format('Y/m') . '/' . Str::uuid() . '.' . $extension;
 
         $supabaseUrl = rtrim(env('SUPABASE_URL'), '/');
         $bucket = env('SUPABASE_STORAGE_BUCKET', 'receipts');
@@ -335,4 +337,5 @@ class ExpenseController extends Controller
                 'apikey' => $serviceKey,
             ])
             ->delete("{$supabaseUrl}/storage/v1/object/{$bucket}/{$filePath}");
+    }
 }
