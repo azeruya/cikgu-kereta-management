@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Expense;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class ExpenseController extends Controller
 {
@@ -131,9 +133,7 @@ class ExpenseController extends Controller
         $path = null;
 
         if ($request->hasFile('receipt_file')) {
-            $path = $request
-                ->file('receipt_file')
-                ->store('receipts', 'public');
+            $path = $this->uploadReceiptToSupabase($request->file('receipt_file'));
         }
 
         $expense = Expense::create([
@@ -180,9 +180,11 @@ class ExpenseController extends Controller
         $path = $expense->receipt_file;
 
         if ($request->hasFile('receipt_file')) {
-            $path = $request
-                ->file('receipt_file')
-                ->store('receipts', 'public');
+            // Delete old Supabase receipt first
+            $this->deleteReceiptFromSupabase($expense->receipt_file);
+
+            // Upload new receipt to Supabase
+            $path = $this->uploadReceiptToSupabase($request->file('receipt_file'));
         }
 
         $expense->update([
@@ -204,6 +206,8 @@ class ExpenseController extends Controller
             ->where('branch_id', $user->branch_id)
             ->where('id', $id)
             ->firstOrFail();
+
+        $this->deleteReceiptFromSupabase($expense->receipt_file);
 
         $expense->delete();
 
@@ -246,9 +250,6 @@ class ExpenseController extends Controller
             // Helps Excel recognize comma-separated CSV
             fwrite($handle, "sep=,\n");
 
-            // Helps Excel read UTF-8 text properly
-            fwrite($handle, "\xEF\xBB\xBF");
-
             fputcsv($handle, ['Date', 'Category', 'Description', 'Amount', 'Receipt File']);
 
             $query->orderByDesc('expense_date')
@@ -270,4 +271,65 @@ class ExpenseController extends Controller
             'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }
+
+    private function uploadReceiptToSupabase($file): string
+{
+    $extension = $file->getClientOriginalExtension();
+
+    $fileName = 'receipts/' . now()->format('Y/m') . '/' . Str::uuid() . '.' . $extension;
+
+    $supabaseUrl = rtrim(env('SUPABASE_URL'), '/');
+    $bucket = env('SUPABASE_STORAGE_BUCKET', 'receipts');
+    $serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!$supabaseUrl || !$serviceKey) {
+        throw new \Exception('Supabase Storage environment variables are missing.');
+    }
+
+    $uploadUrl = "{$supabaseUrl}/storage/v1/object/{$bucket}/{$fileName}";
+
+    $response = Http::withToken($serviceKey)
+        ->withHeaders([
+            'Content-Type' => $file->getMimeType(),
+            'x-upsert' => 'false',
+        ])
+        ->withBody(
+            file_get_contents($file->getRealPath()),
+            $file->getMimeType()
+        )
+        ->post($uploadUrl);
+
+    if (!$response->successful()) {
+        throw new \Exception('Failed to upload receipt to Supabase Storage: ' . $response->body());
+    }
+
+    return "{$supabaseUrl}/storage/v1/object/public/{$bucket}/{$fileName}";
+}
+
+private function deleteReceiptFromSupabase(?string $fileUrl): void
+{
+    if (!$fileUrl) {
+        return;
+    }
+
+    $supabaseUrl = rtrim(env('SUPABASE_URL'), '/');
+    $bucket = env('SUPABASE_STORAGE_BUCKET', 'receipts');
+    $serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
+
+    $prefix = "{$supabaseUrl}/storage/v1/object/public/{$bucket}/";
+
+    // Only delete Supabase public storage URLs
+    if (!str_starts_with($fileUrl, $prefix)) {
+        return;
+    }
+
+    $filePath = str_replace($prefix, '', $fileUrl);
+
+    if (!$filePath) {
+        return;
+    }
+
+    Http::withToken($serviceKey)
+        ->delete("{$supabaseUrl}/storage/v1/object/{$bucket}/{$filePath}");
+}
 }
