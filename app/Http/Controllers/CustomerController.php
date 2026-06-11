@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CustomerController extends Controller
 {
@@ -114,6 +115,107 @@ class CustomerController extends Controller
         $customer->update($validated);
 
         return response()->json($customer);
+    }
+
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $user = $request->user();
+
+        $query = Customer::query()
+            ->where('branch_id', $user->branch_id)
+            ->with([
+                'vehicles:id,customer_id,license_plate,make,model,year',
+                'transactions:id,customer_id,document_number,status,total_amount,created_at',
+            ])
+            ->withCount('transactions')
+            ->withSum('transactions', 'total_amount');
+
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'ilike', "%{$search}%")
+                    ->orWhere('phone', 'ilike', "%{$search}%")
+                    ->orWhere('email', 'ilike', "%{$search}%")
+                    ->orWhereHas('vehicles', function ($vehicleQuery) use ($search) {
+                        $vehicleQuery->where('license_plate', 'ilike', "%{$search}%")
+                            ->orWhere('make', 'ilike', "%{$search}%")
+                            ->orWhere('model', 'ilike', "%{$search}%");
+                    });
+            });
+        }
+
+        if ($request->filled('status') && $request->status !== 'all') {
+            if ($request->status === 'active') {
+                $query->whereHas('transactions', function ($q) {
+                    $q->where('status', 'invoice');
+                });
+            }
+
+            if ($request->status === 'inactive') {
+                $query->whereDoesntHave('transactions', function ($q) {
+                    $q->where('status', 'invoice');
+                });
+            }
+        }
+
+        $filename = 'customers-' . now()->format('Y-m-d-His') . '.csv';
+
+        return response()->streamDownload(function () use ($query) {
+            $handle = fopen('php://output', 'w');
+
+            fwrite($handle, "sep=,\n");
+
+            fputcsv($handle, [
+                'Name',
+                'Phone',
+                'Email',
+                'Address',
+                'Vehicles',
+                'Total Visits',
+                'Total Spent',
+                'Latest Transaction',
+                'Latest Status',
+                'Created At',
+            ]);
+
+            $query->orderBy('name')
+                ->chunk(200, function ($customers) use ($handle) {
+                    foreach ($customers as $customer) {
+                        $vehicles = $customer->vehicles
+                            ->map(function ($vehicle) {
+                                return trim(
+                                    ($vehicle->license_plate ?? '-') . ' - ' .
+                                    ($vehicle->make ?? '') . ' ' .
+                                    ($vehicle->model ?? '') . ' ' .
+                                    ($vehicle->year ?? '')
+                                );
+                            })
+                            ->implode(' | ');
+
+                        $latestTransaction = $customer->transactions
+                            ->sortByDesc('created_at')
+                            ->first();
+
+                        fputcsv($handle, [
+                            $customer->name,
+                            $customer->phone ?? '',
+                            $customer->email ?? '',
+                            $customer->address ?? '',
+                            $vehicles ?: 'No vehicles',
+                            $customer->transactions_count ?? 0,
+                            number_format((float) ($customer->transactions_sum_total_amount ?? 0), 2, '.', ''),
+                            $latestTransaction?->document_number ?? '',
+                            $latestTransaction?->status ?? '',
+                            optional($customer->created_at)->format('Y-m-d H:i'),
+                        ]);
+                    }
+                });
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 
     public function destroy(Request $request, $id)

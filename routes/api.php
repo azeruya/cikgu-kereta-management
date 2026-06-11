@@ -43,10 +43,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
+    Route::get('customers/export/csv', [CustomerController::class, 'exportCsv']);
     Route::apiResource('customers', CustomerController::class);
+
     Route::apiResource('vehicles', VehicleController::class);
 
     // part custom routes must come BEFORE apiResource('parts')
+    Route::get('parts/export/csv', [PartController::class, 'exportCsv']);
     Route::get('parts/low-stock', [PartController::class, 'lowStock']);
     Route::get('parts/compatible/{vehicleId}', [PartController::class, 'compatibleParts']);
     Route::post('parts/{id}/restock', [PartController::class, 'restock']);

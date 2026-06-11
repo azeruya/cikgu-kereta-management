@@ -6,6 +6,7 @@ use App\Models\Part;
 use App\Models\Vehicle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PartController extends Controller
 {
@@ -213,6 +214,107 @@ class PartController extends Controller
         });
 
         return response()->json($updatedPart);
+    }
+
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $user = $request->user();
+
+        $query = Part::query()
+            ->forBranch($user->branch_id)
+            ->with('compatibilities:id,part_id,make,model,year_from,year_to');
+
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'ilike', "%{$search}%")
+                    ->orWhere('variant', 'ilike', "%{$search}%")
+                    ->orWhere('sku', 'ilike', "%{$search}%")
+                    ->orWhere('description', 'ilike', "%{$search}%");
+            });
+        }
+
+        if ($request->filled('type') && $request->type !== 'all') {
+            if ($request->type === 'generic') {
+                $query->where('is_generic', true);
+            }
+
+            if ($request->type === 'specific') {
+                $query->where('is_generic', false);
+            }
+
+            if ($request->type === 'low_stock') {
+                $query->whereColumn('stock', '<=', 'min_stock_threshold');
+            }
+        }
+
+        $filename = 'inventory-' . now()->format('Y-m-d-His') . '.csv';
+
+        return response()->streamDownload(function () use ($query) {
+            $handle = fopen('php://output', 'w');
+
+            fwrite($handle, "sep=,\n");
+
+            fputcsv($handle, [
+                'Name',
+                'Variant',
+                'SKU',
+                'Description',
+                'Type',
+                'Stock',
+                'Minimum Stock',
+                'Cost Price',
+                'Selling Price',
+                'Compatibility',
+                'Created At',
+            ]);
+
+            $query->orderBy('name')
+                ->chunk(200, function ($parts) use ($handle) {
+                    foreach ($parts as $part) {
+                        $compatibility = $part->is_generic
+                            ? 'All vehicles'
+                            : $part->compatibilities
+                                ->map(function ($item) {
+                                    $yearRange = '';
+
+                                    if ($item->year_from || $item->year_to) {
+                                        $yearRange = ' (' .
+                                            ($item->year_from ?? 'Any') .
+                                            '-' .
+                                            ($item->year_to ?? 'Any') .
+                                            ')';
+                                    }
+
+                                    return trim(
+                                        ($item->make ?? '-') . ' ' .
+                                        ($item->model ?? '') .
+                                        $yearRange
+                                    );
+                                })
+                                ->implode(' | ');
+
+                        fputcsv($handle, [
+                            $part->name,
+                            $part->variant ?? '',
+                            $part->sku ?? '',
+                            $part->description ?? '',
+                            $part->is_generic ? 'Generic' : 'Specific',
+                            $part->stock,
+                            $part->min_stock_threshold,
+                            number_format((float) $part->cost_price, 2, '.', ''),
+                            number_format((float) $part->selling_price, 2, '.', ''),
+                            $compatibility ?: 'No compatibility',
+                            optional($part->created_at)->format('Y-m-d H:i'),
+                        ]);
+                    }
+                });
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 
     public function destroy(Request $request, $id)
