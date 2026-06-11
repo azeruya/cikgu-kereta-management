@@ -28,25 +28,26 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         */
         $todayTransactions = Transaction::select([
-                'id',
-                'customer_id',
-                'vehicle_id',
-                'status',
-                'total_amount',
-                'created_at',
-                'updated_at',
-            ])
-            ->with([
-                'customer:id,name',
-                'vehicle:id,license_plate',
-                'items:id,transaction_id,part_id,description',
-                'items.part:id,name',
-            ])
-            ->where('branch_id', $branchId)
-            ->whereBetween('created_at', [$todayStart, $todayEnd])
-            ->latest()
-            ->limit(5)
-            ->get();
+            'id',
+            'customer_id',
+            'vehicle_id',
+            'branch_id',
+            'status',
+            'total_amount',
+            'created_at',
+            'updated_at',
+        ])
+        ->with([
+            'customer:id,name',
+            'vehicle:id,license_plate',
+            'items:id,transaction_id,part_id,item_type,service_name,note',
+            'items.part:id,name',
+        ])
+        ->where('branch_id', $branchId)
+        ->whereBetween('created_at', [$todayStart, $todayEnd])
+        ->latest()
+        ->limit(5)
+        ->get();
 
         /*
         |--------------------------------------------------------------------------
