@@ -254,6 +254,7 @@ class PartController extends Controller
         return response()->streamDownload(function () use ($query) {
             $handle = fopen('php://output', 'w');
 
+            fwrite($handle, "\xEF\xBB\xBF");
             fwrite($handle, "sep=,\n");
 
             fputcsv($handle, [
@@ -298,15 +299,15 @@ class PartController extends Controller
                         fputcsv($handle, [
                             $part->name,
                             $part->variant ?? '',
-                            $part->sku ?? '',
+                            $this->csvText($part->sku),
                             $part->description ?? '',
                             $part->is_generic ? 'Generic' : 'Specific',
                             $part->stock,
                             $part->min_stock_threshold,
                             number_format((float) $part->cost_price, 2, '.', ''),
                             number_format((float) $part->selling_price, 2, '.', ''),
-                            $compatibility ?: 'No compatibility',
-                            optional($part->created_at)->format('Y-m-d H:i'),
+                            $this->csvText($compatibility ?: 'No compatibility'),
+                            $this->csvText(optional($part->created_at)->format('d/m/Y H:i')),
                         ]);
                     }
                 });
@@ -353,5 +354,14 @@ class PartController extends Controller
             'message' => 'Part restocked successfully.',
             'part' => $updatedPart,
         ]);
+    }
+
+    private function csvText($value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        return "\t" . (string) $value;
     }
 }

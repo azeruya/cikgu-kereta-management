@@ -164,6 +164,7 @@ class CustomerController extends Controller
         return response()->streamDownload(function () use ($query) {
             $handle = fopen('php://output', 'w');
 
+            fwrite($handle, "\xEF\xBB\xBF");
             fwrite($handle, "sep=,\n");
 
             fputcsv($handle, [
@@ -199,15 +200,15 @@ class CustomerController extends Controller
 
                         fputcsv($handle, [
                             $customer->name,
-                            $customer->phone ?? '',
+                            $this->csvText($customer->phone),
                             $customer->email ?? '',
                             $customer->address ?? '',
                             $vehicles ?: 'No vehicles',
                             $customer->transactions_count ?? 0,
                             number_format((float) ($customer->transactions_sum_total_amount ?? 0), 2, '.', ''),
-                            $latestTransaction?->document_number ?? '',
+                            $this->csvText($latestTransaction?->document_number),
                             $latestTransaction?->status ?? '',
-                            optional($customer->created_at)->format('Y-m-d H:i'),
+                            $this->csvText(optional($customer->created_at)->format('d/m/Y H:i')),
                         ]);
                     }
                 });
@@ -230,5 +231,14 @@ class CustomerController extends Controller
         $customer->delete();
 
         return response()->json(['message' => 'Customer deleted']);
+    }
+
+    private function csvText($value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        return "\t" . (string) $value;
     }
 }
