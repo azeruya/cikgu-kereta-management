@@ -59,25 +59,25 @@ class Part extends Model
 
     public function scopeGeneric($query)
     {
-        return $query->where('is_generic', 1);
+        return $query->whereRaw('is_generic = true');
     }
 
     public function scopeCompatibleWithVehicle($query, $vehicle)
     {
         return $query->where(function ($q) use ($vehicle) {
-            $q->where('is_generic', 1)
-            ->orWhereHas('compatibilities', function ($compat) use ($vehicle) {
-                $compat->where('make', $vehicle->make)
+            $q->whereRaw('is_generic = true')
+                ->orWhereHas('compatibilities', function ($compat) use ($vehicle) {
+                    $compat->where('make', $vehicle->make)
                         ->where('model', $vehicle->model)
                         ->where(function ($y) use ($vehicle) {
                             $y->whereNull('year_from')
-                            ->orWhere('year_from', '<=', $vehicle->year);
+                                ->orWhere('year_from', '<=', $vehicle->year);
                         })
                         ->where(function ($y) use ($vehicle) {
                             $y->whereNull('year_to')
-                            ->orWhere('year_to', '>=', $vehicle->year);
+                                ->orWhere('year_to', '>=', $vehicle->year);
                         });
-            });
+                });
         });
     }
 }
