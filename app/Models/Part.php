@@ -59,13 +59,13 @@ class Part extends Model
 
     public function scopeGeneric($query)
     {
-        return $query->where('is_generic', true);
+        return $query->where('is_generic', 1);
     }
 
     public function scopeCompatibleWithVehicle($query, $vehicle)
     {
         return $query->where(function ($q) use ($vehicle) {
-            $q->where('is_generic', true)
+            $q->where('is_generic', 1)
             ->orWhereHas('compatibilities', function ($compat) use ($vehicle) {
                 $compat->where('make', $vehicle->make)
                         ->where('model', $vehicle->model)
