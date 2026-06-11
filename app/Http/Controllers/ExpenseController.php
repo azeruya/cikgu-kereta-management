@@ -273,63 +273,66 @@ class ExpenseController extends Controller
     }
 
     private function uploadReceiptToSupabase($file): string
-{
-    $extension = $file->getClientOriginalExtension();
+    {
+        $extension = $file->getClientOriginalExtension();
 
-    $fileName = 'receipts/' . now()->format('Y/m') . '/' . Str::uuid() . '.' . $extension;
+        $fileName = 'receipts/' . now()->format('Y/m') . '/' . Str::uuid() . '.' . $extension;
 
-    $supabaseUrl = rtrim(env('SUPABASE_URL'), '/');
-    $bucket = env('SUPABASE_STORAGE_BUCKET', 'receipts');
-    $serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
+        $supabaseUrl = rtrim(env('SUPABASE_URL'), '/');
+        $bucket = env('SUPABASE_STORAGE_BUCKET', 'receipts');
+        $serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!$supabaseUrl || !$serviceKey) {
-        throw new \Exception('Supabase Storage environment variables are missing.');
+        if (!$supabaseUrl || !$serviceKey) {
+            throw new \Exception('Supabase Storage environment variables are missing.');
+        }
+
+        $uploadUrl = "{$supabaseUrl}/storage/v1/object/{$bucket}/{$fileName}";
+        
+            $response = Http::withToken($serviceKey)
+                ->withHeaders([
+                    'apikey' => $serviceKey,
+                    'Content-Type' => $file->getMimeType(),
+                    'x-upsert' => 'false',
+                ])
+                ->withBody(
+                    file_get_contents($file->getRealPath()),
+                    $file->getMimeType()
+                )
+                ->post($uploadUrl);
+
+        if (!$response->successful()) {
+            throw new \Exception('Failed to upload receipt to Supabase Storage: ' . $response->body());
+        }
+
+        return "{$supabaseUrl}/storage/v1/object/public/{$bucket}/{$fileName}";
     }
 
-    $uploadUrl = "{$supabaseUrl}/storage/v1/object/{$bucket}/{$fileName}";
+    private function deleteReceiptFromSupabase(?string $fileUrl): void
+    {
+        if (!$fileUrl) {
+            return;
+        }
 
-    $response = Http::withToken($serviceKey)
-        ->withHeaders([
-            'Content-Type' => $file->getMimeType(),
-            'x-upsert' => 'false',
-        ])
-        ->withBody(
-            file_get_contents($file->getRealPath()),
-            $file->getMimeType()
-        )
-        ->post($uploadUrl);
+        $supabaseUrl = rtrim(env('SUPABASE_URL'), '/');
+        $bucket = env('SUPABASE_STORAGE_BUCKET', 'receipts');
+        $serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!$response->successful()) {
-        throw new \Exception('Failed to upload receipt to Supabase Storage: ' . $response->body());
-    }
+        $prefix = "{$supabaseUrl}/storage/v1/object/public/{$bucket}/";
 
-    return "{$supabaseUrl}/storage/v1/object/public/{$bucket}/{$fileName}";
-}
+        // Only delete Supabase public storage URLs
+        if (!str_starts_with($fileUrl, $prefix)) {
+            return;
+        }
 
-private function deleteReceiptFromSupabase(?string $fileUrl): void
-{
-    if (!$fileUrl) {
-        return;
-    }
+        $filePath = str_replace($prefix, '', $fileUrl);
 
-    $supabaseUrl = rtrim(env('SUPABASE_URL'), '/');
-    $bucket = env('SUPABASE_STORAGE_BUCKET', 'receipts');
-    $serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
+        if (!$filePath) {
+            return;
+        }
 
-    $prefix = "{$supabaseUrl}/storage/v1/object/public/{$bucket}/";
-
-    // Only delete Supabase public storage URLs
-    if (!str_starts_with($fileUrl, $prefix)) {
-        return;
-    }
-
-    $filePath = str_replace($prefix, '', $fileUrl);
-
-    if (!$filePath) {
-        return;
-    }
-
-    Http::withToken($serviceKey)
-        ->delete("{$supabaseUrl}/storage/v1/object/{$bucket}/{$filePath}");
-}
+        Http::withToken($serviceKey)
+            ->withHeaders([
+                'apikey' => $serviceKey,
+            ])
+            ->delete("{$supabaseUrl}/storage/v1/object/{$bucket}/{$filePath}");
 }
