@@ -92,7 +92,7 @@ class OnlineRequestImportController extends Controller
                     'external_row_hash' => $hash,
                     'submitted_at' => $data['submitted_at'],
                     'problem_description' => $data['problem'],
-                    'terms_accepted' => $data['terms_accepted'],
+                    'terms_accepted' => (bool) $data['terms_accepted'],
                     'status' => 'new',
                     'raw_data' => $data,
                 ]);
