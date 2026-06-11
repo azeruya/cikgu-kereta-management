@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo pdo_pgsql pgsql zip mbstring gd
-    
+
 # Enable Apache rewrite module
 RUN a2enmod rewrite
 
@@ -40,6 +40,8 @@ COPY . .
 
 # Install Laravel dependencies
 RUN composer install --no-dev --optimize-autoloader
+
+RUN php artisan storage:link || true
 
 # Permissions
 RUN chown -R www-data:www-data storage bootstrap/cache \

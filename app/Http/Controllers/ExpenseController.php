@@ -243,6 +243,12 @@ class ExpenseController extends Controller
         return response()->streamDownload(function () use ($query) {
             $handle = fopen('php://output', 'w');
 
+            // Helps Excel recognize comma-separated CSV
+            fwrite($handle, "sep=,\n");
+
+            // Helps Excel read UTF-8 text properly
+            fwrite($handle, "\xEF\xBB\xBF");
+
             fputcsv($handle, ['Date', 'Category', 'Description', 'Amount', 'Receipt File']);
 
             $query->orderByDesc('expense_date')
@@ -252,16 +258,16 @@ class ExpenseController extends Controller
                         fputcsv($handle, [
                             optional($expense->expense_date)->format('Y-m-d'),
                             $expense->category,
-                            $expense->description,
-                            $expense->amount,
-                            $expense->receipt_file,
+                            $expense->description ?? '',
+                            number_format((float) $expense->amount, 2, '.', ''),
+                            $expense->receipt_file ?? '',
                         ]);
                     }
                 });
 
             fclose($handle);
         }, $filename, [
-            'Content-Type' => 'text/csv',
+            'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
     }
 }
