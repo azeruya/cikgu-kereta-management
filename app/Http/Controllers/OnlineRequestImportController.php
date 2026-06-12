@@ -242,7 +242,40 @@ class OnlineRequestImportController extends Controller
 
     private function cleanPhone(?string $phone): string
     {
-        return preg_replace('/\D+/', '', $phone ?? '');
+        if (!$phone) {
+            return '';
+        }
+
+        $phone = trim((string) $phone);
+
+        // Remove spaces, dashes, brackets
+        $phone = preg_replace('/[\s\-\(\)]/', '', $phone);
+
+        // Remove leading +
+        $phone = ltrim($phone, '+');
+
+        // 0060193804822 -> 60193804822
+        if (preg_match('/^00601\d{8,9}$/', $phone)) {
+            return substr($phone, 2);
+        }
+
+        // Excel removed leading 0: 193804822 -> 60193804822
+        if (preg_match('/^1\d{8,9}$/', $phone)) {
+            return '60' . $phone;
+        }
+
+        // Local Malaysia: 0193804822 -> 60193804822
+        if (preg_match('/^01\d{8,9}$/', $phone)) {
+            return '6' . $phone;
+        }
+
+        // Already Malaysia international format
+        if (preg_match('/^601\d{8,9}$/', $phone)) {
+            return $phone;
+        }
+
+        // Fallback: digits only
+        return preg_replace('/\D+/', '', $phone);
     }
 
     private function cleanPlate(?string $plate): string

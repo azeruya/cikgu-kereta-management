@@ -87,7 +87,7 @@ class CustomerController extends Controller
 
         $customer = Customer::create([
             'name' => $validated['name'],
-            'phone' => $validated['phone'] ?? null,
+            'phone' => $this->normalizeMalaysiaPhone($validated['phone'] ?? null),
             'email' => $validated['email'] ?? null,
             'address' => $validated['address'] ?? null,
             'branch_id' => $user->branch_id,
@@ -154,6 +154,10 @@ class CustomerController extends Controller
             ],
             'address' => 'nullable|string',
         ]);
+
+        if (array_key_exists('phone', $validated)) {
+            $validated['phone'] = $this->normalizeMalaysiaPhone($validated['phone']);
+        }
 
         $customer->update($validated);
 
@@ -283,5 +287,38 @@ class CustomerController extends Controller
         }
 
         return "\t" . (string) $value;
+    }
+
+    private function normalizeMalaysiaPhone($phone): ?string
+    {
+        if (!$phone) {
+            return null;
+        }
+
+        $phone = trim((string) $phone);
+        $phone = preg_replace('/[\s\-\(\)]/', '', $phone);
+        $phone = ltrim($phone, '+');
+
+        // Excel removed leading 0: 193804822 -> 0193804822
+        if (preg_match('/^1\d{8,9}$/', $phone)) {
+            $phone = '0' . $phone;
+        }
+
+        // Local Malaysia: 0193804822 -> 60193804822
+        if (preg_match('/^01\d{8,9}$/', $phone)) {
+            $phone = '6' . $phone;
+        }
+
+        // Already Malaysia international format
+        if (preg_match('/^601\d{8,9}$/', $phone)) {
+            return $phone;
+        }
+
+        // 0060193804822 -> 60193804822
+        if (preg_match('/^00601\d{8,9}$/', $phone)) {
+            return substr($phone, 2);
+        }
+
+        return $phone;
     }
 }
