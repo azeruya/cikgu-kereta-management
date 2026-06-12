@@ -26,7 +26,7 @@ class CustomerController extends Controller
             ->where('branch_id', $user->branch_id)
             ->with([
                 'vehicles:id,customer_id,license_plate',
-                'latestTransaction:id,customer_id,vehicle_id,document_number,status,total_amount,created_at',
+                'latestTransaction',
                 'latestTransaction.vehicle:id,license_plate',
             ]);
 
@@ -46,7 +46,7 @@ class CustomerController extends Controller
         if ($request->filled('status') && $request->status !== 'all') {
             if ($request->status === 'active') {
                 $query->whereHas('latestTransaction', function ($q) {
-                    $q->where('status', 'invoice');
+                    $q->where('transactions.status', 'invoice');
                 });
             }
 
@@ -54,7 +54,7 @@ class CustomerController extends Controller
                 $query->where(function ($q) {
                     $q->whereDoesntHave('latestTransaction')
                         ->orWhereHas('latestTransaction', function ($trx) {
-                            $trx->where('status', '!=', 'invoice');
+                            $trx->where('transactions.status', '!=', 'invoice');
                         });
                 });
             }
