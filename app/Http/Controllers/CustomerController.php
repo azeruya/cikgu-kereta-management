@@ -13,11 +13,54 @@ class CustomerController extends Controller
     {
         $user = $request->user();
 
-        $customers = Customer::query()
+        $query = Customer::query()
+            ->select([
+                'id',
+                'branch_id',
+                'name',
+                'phone',
+                'email',
+                'address',
+                'created_at',
+            ])
             ->where('branch_id', $user->branch_id)
             ->with([
-                'vehicles:id,customer_id,license_plate'
-            ])
+                'vehicles:id,customer_id,license_plate',
+                'latestTransaction:id,customer_id,vehicle_id,document_number,status,total_amount,created_at',
+                'latestTransaction.vehicle:id,license_plate',
+            ]);
+
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'ilike', "%{$search}%")
+                    ->orWhere('phone', 'ilike', "%{$search}%")
+                    ->orWhere('email', 'ilike', "%{$search}%")
+                    ->orWhereHas('vehicles', function ($vehicleQuery) use ($search) {
+                        $vehicleQuery->where('license_plate', 'ilike', "%{$search}%");
+                    });
+            });
+        }
+
+        if ($request->filled('status') && $request->status !== 'all') {
+            if ($request->status === 'active') {
+                $query->whereHas('latestTransaction', function ($q) {
+                    $q->where('status', 'invoice');
+                });
+            }
+
+            if ($request->status === 'inactive') {
+                $query->where(function ($q) {
+                    $q->whereDoesntHave('latestTransaction')
+                        ->orWhereHas('latestTransaction', function ($trx) {
+                            $trx->where('status', '!=', 'invoice');
+                        });
+                });
+            }
+        }
+
+        $customers = $query
             ->orderByDesc('id')
             ->paginate(10);
 

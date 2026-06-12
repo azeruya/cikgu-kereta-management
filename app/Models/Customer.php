@@ -30,6 +30,11 @@ class Customer extends Model
         return $this->hasMany(Transaction::class);
     }
 
+    public function latestTransaction()
+    {
+        return $this->hasOne(Transaction::class)->latestOfMany();
+    }
+
     public function onlineRequests()
     {
         return $this->hasMany(OnlineRequest::class);
