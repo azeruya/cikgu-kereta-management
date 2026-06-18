@@ -99,6 +99,18 @@
         margin: 20px 0;
     }
 
+    .status-badge {
+        display: inline-flex !important;
+        width: fit-content !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 11.2px;
+        font-weight: 850;
+        line-height: 1;
+    }
+
     /* ── Status badge (top right) ─── */
     .status-badge-unpaid {
         display: inline;
