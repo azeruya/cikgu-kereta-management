@@ -103,7 +103,7 @@ class PartController extends Controller
             'stock' => 'required|integer|min:0',
             'min_stock_threshold' => 'required|integer|min:0',
             'image' => 'nullable|string|max:255',
-            'is_generic' => 'nullable|boolean',
+            'is_generic' => 'sometimes|boolean',
             'compatibilities' => 'nullable|array',
             'compatibilities.*.make' => 'nullable|string|max:100',
             'compatibilities.*.model' => 'nullable|string|max:100',
@@ -123,7 +123,10 @@ class PartController extends Controller
                 'stock' => $validated['stock'],
                 'min_stock_threshold' => $validated['min_stock_threshold'],
                 'image' => $validated['image'] ?? null,
-                'is_generic' => $validated['is_generic'] ?? false,
+                'is_generic' => filter_var(
+                    $validated['is_generic'] ?? false,
+                    FILTER_VALIDATE_BOOLEAN
+                ),
             ]);
 
             if (!empty($validated['compatibilities'])) {
@@ -175,7 +178,7 @@ class PartController extends Controller
             'stock' => 'sometimes|required|integer|min:0',
             'min_stock_threshold' => 'sometimes|required|integer|min:0',
             'image' => 'nullable|string|max:255',
-            'is_generic' => 'nullable|boolean',
+            'is_generic' => 'sometimes|boolean',
             'compatibilities' => 'nullable|array',
             'compatibilities.*.make' => 'nullable|string|max:100',
             'compatibilities.*.model' => 'nullable|string|max:100',
@@ -194,13 +197,15 @@ class PartController extends Controller
                 'stock' => $validated['stock'] ?? $part->stock,
                 'min_stock_threshold' => $validated['min_stock_threshold'] ?? $part->min_stock_threshold,
                 'image' => $validated['image'] ?? $part->image,
-                'is_generic' => $validated['is_generic'] ?? $part->is_generic,
+                'is_generic' => array_key_exists('is_generic', $validated)
+                    ? filter_var($validated['is_generic'], FILTER_VALIDATE_BOOLEAN)
+                    : $part->is_generic,
             ]);
 
             if (array_key_exists('compatibilities', $validated)) {
                 $part->compatibilities()->delete();
 
-                foreach ($validated['compatibilities'] as $compatibility) {
+                foreach ($validated['compatibilities'] ?? [] as $compatibility) {
                     $part->compatibilities()->create([
                         'make' => $compatibility['make'] ?? null,
                         'model' => $compatibility['model'] ?? null,
