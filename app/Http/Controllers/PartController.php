@@ -112,6 +112,11 @@ class PartController extends Controller
         ]);
 
         $part = DB::transaction(function () use ($validated, $user) {
+            $isGeneric = filter_var(
+                $validated['is_generic'] ?? false,
+                FILTER_VALIDATE_BOOLEAN
+            );
+
             $part = Part::create([
                 'branch_id' => $user->branch_id,
                 'name' => $validated['name'],
@@ -123,13 +128,10 @@ class PartController extends Controller
                 'stock' => $validated['stock'],
                 'min_stock_threshold' => $validated['min_stock_threshold'],
                 'image' => $validated['image'] ?? null,
-                'is_generic' => filter_var(
-                    $validated['is_generic'] ?? false,
-                    FILTER_VALIDATE_BOOLEAN
-                ),
+                'is_generic' => DB::raw($isGeneric ? 'TRUE' : 'FALSE'),
             ]);
 
-            if (!empty($validated['compatibilities'])) {
+            if (!$isGeneric && !empty($validated['compatibilities'])) {
                 foreach ($validated['compatibilities'] as $compatibility) {
                     $part->compatibilities()->create([
                         'make' => $compatibility['make'] ?? null,
@@ -140,7 +142,9 @@ class PartController extends Controller
                 }
             }
 
-            return $part->load('compatibilities:id,part_id,make,model,year_from,year_to');
+            return $part->load(
+                'compatibilities:id,part_id,make,model,year_from,year_to'
+            );
         });
 
         return response()->json($part, 201);
@@ -187,6 +191,10 @@ class PartController extends Controller
         ]);
 
         $updatedPart = DB::transaction(function () use ($part, $validated) {
+            $isGeneric = array_key_exists('is_generic', $validated)
+                ? filter_var($validated['is_generic'], FILTER_VALIDATE_BOOLEAN)
+                : (bool) $part->is_generic;
+
             $part->update([
                 'name' => $validated['name'] ?? $part->name,
                 'variant' => $validated['variant'] ?? $part->variant,
@@ -195,14 +203,16 @@ class PartController extends Controller
                 'cost_price' => $validated['cost_price'] ?? $part->cost_price,
                 'selling_price' => $validated['selling_price'] ?? $part->selling_price,
                 'stock' => $validated['stock'] ?? $part->stock,
-                'min_stock_threshold' => $validated['min_stock_threshold'] ?? $part->min_stock_threshold,
+                'min_stock_threshold' =>
+                    $validated['min_stock_threshold']
+                    ?? $part->min_stock_threshold,
                 'image' => $validated['image'] ?? $part->image,
-                'is_generic' => array_key_exists('is_generic', $validated)
-                    ? filter_var($validated['is_generic'], FILTER_VALIDATE_BOOLEAN)
-                    : $part->is_generic,
+                'is_generic' => DB::raw($isGeneric ? 'TRUE' : 'FALSE'),
             ]);
 
-            if (array_key_exists('compatibilities', $validated)) {
+            if ($isGeneric) {
+                $part->compatibilities()->delete();
+            } elseif (array_key_exists('compatibilities', $validated)) {
                 $part->compatibilities()->delete();
 
                 foreach ($validated['compatibilities'] ?? [] as $compatibility) {
@@ -215,7 +225,9 @@ class PartController extends Controller
                 }
             }
 
-            return $part->load('compatibilities:id,part_id,make,model,year_from,year_to');
+            return $part->load(
+                'compatibilities:id,part_id,make,model,year_from,year_to'
+            );
         });
 
         return response()->json($updatedPart);
