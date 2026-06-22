@@ -13,6 +13,31 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\OnlineRequestImportController;
 
+use Illuminate\Support\Facades\DB;
+
+Route::get('/test-no-db', function () {
+    return response()->json(['ok' => true]);
+});
+
+Route::get('/test-db', function () {
+    $start = microtime(true);
+
+    DB::select('select 1');
+
+    $first = round((microtime(true) - $start) * 1000, 2);
+
+    $start = microtime(true);
+
+    DB::select('select 1');
+
+    $second = round((microtime(true) - $start) * 1000, 2);
+
+    return response()->json([
+        'first_query_ms' => $first,
+        'second_query_ms' => $second,
+    ]);
+});
+
 // PUBLIC routes
 Route::get('/health', function () {
     return response()->json([
