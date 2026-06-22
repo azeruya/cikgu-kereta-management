@@ -24,19 +24,9 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Today's transactions
+        | latest transactions
         |--------------------------------------------------------------------------
         */
-        $todayTransactions = Transaction::with([
-                'customer:id,name',
-                'vehicle:id,license_plate',
-                'items.part:id,name',
-            ])
-            ->where('branch_id', $branchId)
-            ->whereBetween('created_at', [$todayStart, $todayEnd])
-            ->latest()
-            ->limit(5)
-            ->get();
 
         $latestTransactions = Transaction::with([
                'customer:id,name',
@@ -174,7 +164,6 @@ class DashboardController extends Controller
 
         return response()->json([
             'summary' => $summary,
-            'today_transactions' => $todayTransactions,
             'latest_transactions' => $latestTransactions,
             'weekly_revenue' => $weeklyRevenue,
             'low_stock_items' => $lowStockItems,
