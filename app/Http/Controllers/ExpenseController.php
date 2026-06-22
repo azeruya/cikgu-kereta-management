@@ -14,11 +14,33 @@ class ExpenseController extends Controller
     {
         $user = $request->user();
 
-        $perPage = (int) $request->get('per_page', 8);
-        $perPage = min(max($perPage, 5), 50);
+        $perPage = min(max((int) $request->get('per_page', 8), 5), 50);
 
-        $query = Expense::query()
-            ->where('branch_id', $user->branch_id)
+        $baseQuery = Expense::query()
+            ->where('branch_id', $user->branch_id);
+
+        if ($request->filled('category') && $request->category !== 'all') {
+            $baseQuery->where('category', $request->category);
+        }
+
+        if ($request->filled('from_date')) {
+            $baseQuery->whereDate('expense_date', '>=', $request->from_date);
+        }
+
+        if ($request->filled('to_date')) {
+            $baseQuery->whereDate('expense_date', '<=', $request->to_date);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+
+            $baseQuery->where(function ($query) use ($search) {
+                $query->where('category', 'ilike', "%{$search}%")
+                    ->orWhere('description', 'ilike', "%{$search}%");
+            });
+        }
+
+        $expenses = (clone $baseQuery)
             ->select([
                 'id',
                 'branch_id',
@@ -28,90 +50,47 @@ class ExpenseController extends Controller
                 'expense_date',
                 'receipt_file',
                 'created_at',
-            ]);
+            ])
+            ->orderByDesc('expense_date')
+            ->orderByDesc('id')
+            ->paginate($perPage);
 
-        if ($request->filled('category') && $request->category !== 'all') {
-            $query->where('category', $request->category);
-        }
+        $summary = (clone $baseQuery)
+            ->selectRaw('COUNT(*) as total_records')
+            ->selectRaw('COALESCE(SUM(amount), 0) as total_expenses')
+            ->selectRaw("
+                COALESCE(
+                    SUM(amount) FILTER (
+                        WHERE EXTRACT(MONTH FROM expense_date) = ?
+                        AND EXTRACT(YEAR FROM expense_date) = ?
+                    ),
+                    0
+                ) as this_month
+            ", [now()->month, now()->year])
+            ->first();
 
-        if ($request->filled('from_date')) {
-            $query->whereDate('expense_date', '>=', $request->from_date);
-        }
-
-        if ($request->filled('to_date')) {
-            $query->whereDate('expense_date', '<=', $request->to_date);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-
-            $query->where(function ($q) use ($search) {
-                $q->where('category', 'ilike', "%{$search}%")
-                ->orWhere('description', 'ilike', "%{$search}%");
-            });
-        }
-
-        return response()->json(
-            $query
-                ->orderByDesc('expense_date')
-                ->orderByDesc('id')
-                ->paginate($perPage)
-        );
-    }
-
-    public function summary(Request $request)
-    {
-        $user = $request->user();
-
-        $query = Expense::query()
-            ->where('branch_id', $user->branch_id);
-
-        if ($request->filled('category') && $request->category !== 'all') {
-            $query->where('category', $request->category);
-        }
-
-        if ($request->filled('from_date')) {
-            $query->whereDate('expense_date', '>=', $request->from_date);
-        }
-
-        if ($request->filled('to_date')) {
-            $query->whereDate('expense_date', '<=', $request->to_date);
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-
-            $query->where(function ($q) use ($search) {
-                $q->where('category', 'ilike', "%{$search}%")
-                ->orWhere('description', 'ilike', "%{$search}%");
-            });
-        }
-
-        $summary = [
-            'total_records' => (clone $query)->count(),
-            'total_expenses' => (clone $query)->sum('amount'),
-            'this_month' => (clone $query)
-                ->whereMonth('expense_date', now()->month)
-                ->whereYear('expense_date', now()->year)
-                ->sum('amount'),
-        ];
-
-        $monthlyTrend = (clone $query)
+        $monthlyTrend = (clone $baseQuery)
             ->selectRaw("TO_CHAR(expense_date, 'Mon YYYY') as label")
             ->selectRaw("DATE_TRUNC('month', expense_date) as month_key")
-            ->selectRaw("SUM(amount) as total")
-            ->groupByRaw("DATE_TRUNC('month', expense_date), TO_CHAR(expense_date, 'Mon YYYY')")
-            ->orderByRaw("DATE_TRUNC('month', expense_date)")
+            ->selectRaw('SUM(amount) as total')
+            ->groupByRaw("
+                DATE_TRUNC('month', expense_date),
+                TO_CHAR(expense_date, 'Mon YYYY')
+            ")
+            ->orderByRaw("DATE_TRUNC('month', expense_date) DESC")
             ->limit(6)
-            ->get();
+            ->get()
+            ->reverse()
+            ->values();
 
-        $categoryTotals = (clone $query)
+        $categoryTotals = (clone $baseQuery)
             ->selectRaw('category, SUM(amount) as total')
             ->groupBy('category')
             ->orderByDesc('total')
             ->get();
 
         return response()->json([
+            'expenses' => $expenses,
             'summary' => $summary,
             'monthly_trend' => $monthlyTrend,
             'category_totals' => $categoryTotals,
