@@ -343,7 +343,6 @@
                         <div class="brand-tagline">Workshop Management</div>
                         <div class="brand-contact">
                             {{ Str::limit($transaction->branch->location ?? '—', 70) }}<br>
-                            Phone &nbsp;/&nbsp; Email
                         </div>
                     </td>
                 </tr>

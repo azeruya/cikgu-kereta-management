@@ -99,18 +99,6 @@
         margin: 20px 0;
     }
 
-    .status-badge {
-        display: inline-flex !important;
-        width: fit-content !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: 11.2px;
-        font-weight: 850;
-        line-height: 1;
-    }
-
     /* ── Status badge (top right) ─── */
     .status-badge-unpaid {
         display: inline;
@@ -136,6 +124,18 @@
         padding: 4px 10px;
         border-radius: 4px;
         border: 1px solid #dcfce7;
+    }
+
+    .status-badge {
+        display: inline-flex !important;
+        width: fit-content !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 11.2px;
+        font-weight: 850;
+        line-height: 1;
     }
 
     /* ── Info boxes ─── */
@@ -361,7 +361,6 @@
                         <div class="brand-tagline">Workshop Management</div>
                         <div class="brand-contact">
                             {{ Str::limit($transaction->branch->location ?? '—', 70) }}<br>
-                            Phone &nbsp;/&nbsp; Email
                         </div>
                     </td>
                 </tr>
